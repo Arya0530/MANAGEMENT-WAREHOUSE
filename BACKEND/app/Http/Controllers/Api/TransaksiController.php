@@ -81,19 +81,61 @@ class TransaksiController extends Controller
         return response()->json(['success' => true, 'message' => 'Transaksi Keluar DITOLAK!']);
     }
 
-    // 4. Update RIWAYAT (Gabungin Masuk & Keluar buat Audit Trail)
-    public function riwayat()
+ // 4. Update RIWAYAT (Diakalin gabunginnya di Laravel, BUKAN di Oracle biar ga meledak)
+   public function riwayat(Request $request)
     {
-        $masuk = \Illuminate\Support\Facades\DB::table('BARANG_MASUK')
-                    ->select('id_masuk as id', 'tgl_masuk as tanggal', 'id_barang', 'qty_masuk as qty', 'status', \Illuminate\Support\Facades\DB::raw("'Barang Masuk' as jenis"));
-        
-        $riwayat = \Illuminate\Support\Facades\DB::table('BARANG_KELUAR')
-                    ->select('id_keluar as id', 'tgl_keluar as tanggal', 'id_barang', 'qty_keluar as qty', 'status', \Illuminate\Support\Facades\DB::raw("'Barang Keluar' as jenis"))
-                    ->union($masuk)
-                    ->orderBy('tanggal', 'desc')
-                    ->get();
+        try {
+            $role = $request->query('role');
+            $idPegawai = $request->query('id_pegawai');
 
-        return response()->json(['success' => true, 'data' => $riwayat], 200);
+            $masukQuery = \Illuminate\Support\Facades\DB::table('BARANG_MASUK')
+                ->select('ID_Masuk as id', 'Tgl_Masuk as tanggal', 'ID_Barang as id_barang', 'Qty_Masuk as qty', 'Status as status', 'ID_Pegawai as pembuat');
+
+            $keluarQuery = \Illuminate\Support\Facades\DB::table('BARANG_KELUAR')
+                ->select('ID_Keluar as id', 'Tgl_Keluar as tanggal', 'ID_Barang as id_barang', 'Qty_Keluar as qty', 'Status as status', 'ID_Pegawai as pembuat');
+
+            // Filter Kasta Staf: Cuma liat transaksinya sendiri
+            if ($role === 'Staf') {
+                $masukQuery->where('ID_Pegawai', $idPegawai);
+                $keluarQuery->where('ID_Pegawai', $idPegawai);
+            }
+
+            $masuk = $masukQuery->get()->map(function ($item) {
+                $item->jenis = 'Barang Masuk';
+                return $item;
+            });
+
+            $keluar = $keluarQuery->get()->map(function ($item) {
+                $item->jenis = 'Barang Keluar';
+                return $item;
+            });
+
+            // Gabungin transaksi Masuk & Keluar
+            $riwayat = $masuk->merge($keluar);
+
+            // --- JENG JENG! KHUSUS ADMIN BISA LIAT AUDIT_LOG MASTER ---
+            if ($role === 'Admin') {
+                $auditLog = \Illuminate\Support\Facades\DB::table('AUDIT_LOG')
+                    // Diakalin karena log ga punya ID_Barang, Qty, dan Status. Diisi '-' aja.
+                    ->select('ID_Log as id', 'Waktu as tanggal', \Illuminate\Support\Facades\DB::raw("'-' as id_barang"), \Illuminate\Support\Facades\DB::raw("'-' as qty"), 'Aktivitas as status', 'ID_Pegawai as pembuat')
+                    ->get()
+                    ->map(function ($item) {
+                        $item->jenis = 'Aktivitas Admin';
+                        return $item;
+                    });
+                
+                // Gabungin log master ke riwayat transaksi
+                $riwayat = $riwayat->merge($auditLog);
+            }
+
+            // Urutin semua data berdasarkan tanggal dari yang terbaru
+            $riwayat = $riwayat->sortByDesc('tanggal')->values()->all();
+
+            return response()->json(['success' => true, 'data' => $riwayat], 200);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Oracle Error: ' . $e->getMessage()], 500);
+        }
     }
    
     // Fungsi Input Barang Keluar (Status PENDING SPV)
@@ -124,5 +166,45 @@ class TransaksiController extends Controller
             return response()->json(['success' => false, 'message' => 'Gagal nyimpen: ' . $e->getMessage()], 500);
         }
     }
-    
+    // ==========================================
+    // FUNGSI ANTREAN & APPROVAL BARANG MASUK
+    // ==========================================
+
+    // 1. Narik data barang masuk yang masih PENDING
+    public function pending()
+    {
+        $transaksi = \Illuminate\Support\Facades\DB::table('BARANG_MASUK')
+                        ->where('status', 'PENDING')->get();
+        return response()->json(['success' => true, 'data' => $transaksi], 200);
+    }
+
+    // 2. APPROVE Barang Masuk (Nambah Stok)
+    public function approveMasuk($id)
+    {
+        try {
+            \Illuminate\Support\Facades\DB::beginTransaction();
+
+            $trx = \Illuminate\Support\Facades\DB::table('BARANG_MASUK')->where('id_masuk', $id)->first();
+            
+            \Illuminate\Support\Facades\DB::table('BARANG_MASUK')->where('id_masuk', $id)->update(['status' => 'APPROVED']);
+
+            // Karena ini barang masuk, stoknya NAIK (increment)
+            \Illuminate\Support\Facades\DB::table('BARANG')
+                ->where('ID_Barang', $trx->id_barang)
+                ->increment('Stok', $trx->qty_masuk);
+
+            \Illuminate\Support\Facades\DB::commit();
+            return response()->json(['success' => true, 'message' => 'Barang Masuk di-Approve & Stok bertambah!']);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\DB::rollBack();
+            return response()->json(['success' => false, 'message' => 'Gagal: ' . $e->getMessage()]);
+        }
+    }
+
+    // 3. REJECT Barang Masuk
+    public function rejectMasuk($id)
+    {
+        \Illuminate\Support\Facades\DB::table('BARANG_MASUK')->where('id_masuk', $id)->update(['status' => 'REJECTED']);
+        return response()->json(['success' => true, 'message' => 'Transaksi Masuk DITOLAK!']);
+    }
 } // <--- Ini kurung kurawal penutup file (class) lu

@@ -55,26 +55,26 @@ export default function Dashboard() {
   const handleApprove = async (idMasuk) => {
     try {
       await axios.post(`http://localhost:8000/api/approve-masuk/${idMasuk}`);
-      alert("Barang berhasil di-Approve! Stok bertambah otomatis.");
+      alert("✅ Barang berhasil di-Approve! Stok bertambah otomatis.");
       fetchDataBarang(); 
       fetchPending();    
     } catch (error) {
-      alert("Gagal approve data.");
+      // INI YANG DIGANTI BIAR ERROR ASLINYA KELUAR
+      alert(`🚨 GAGAL APPROVE: ${error.response?.data?.message || error.message}`);
     }
   };
-
   const handleReject = async (idMasuk) => {
     if (window.confirm("Yakin mau NOLAK barang masuk ini?")) {
       try {
         await axios.post(`http://localhost:8000/api/reject-masuk/${idMasuk}`);
-        alert("Transaksi masuk berhasil ditolak!");
+        alert("✅ Transaksi masuk berhasil ditolak!");
         fetchPending(); 
       } catch (error) {
-        alert("Gagal reject data.");
+        // INI YANG DIGANTI BIAR ERROR ASLINYA KELUAR
+        alert(`🚨 GAGAL REJECT: ${error.response?.data?.message || error.message}`);
       }
     }
   };
-
   // --- FUNGSI ANTREAN BARANG KELUAR ---
   const fetchPendingKeluar = async () => {
     try {
@@ -90,7 +90,7 @@ export default function Dashboard() {
       fetchDataBarang();    // Refresh stok di tabel atas biar keliatan berkurangnya
       fetchPendingKeluar(); // Refresh antrean keluar
     } catch (error) {
-      alert("Gagal approve barang keluar.");
+      alert(`🚨 GAGAL APPROVE: ${error.response?.data?.message || error.message}`);
     }
   };
 
@@ -101,7 +101,7 @@ export default function Dashboard() {
         alert("Barang Keluar berhasil ditolak!");
         fetchPendingKeluar(); 
       } catch (error) {
-        alert("Gagal reject barang keluar.");
+        alert(`🚨 GAGAL REJECT: ${error.response?.data?.message || error.message}`);
       }
     }
   };
@@ -119,12 +119,14 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-light">
       {/* Navbar Minimalis */}
       <nav className="bg-navy-main text-white p-4 shadow-md flex justify-between items-center">
-        <h1 className="text-xl font-bold text-yellow-accent">E-Gudang Dashboard</h1>
+        <h1 className="text-xl font-bold text-white">E-Gudang Dashboard</h1>
         <div className="flex items-center gap-4">
-          <span>Halo, <strong>{user.Nama}</strong></span>
+          <span>
+          Halo, <strong>{user.Nama}</strong> 
+        </span>
           <button 
             onClick={handleLogout}
-            className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded text-sm font-bold transition"
+             className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded text-sm font-bold transition"
           >
             Logout
           </button>
@@ -136,44 +138,32 @@ export default function Dashboard() {
       <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-navy-main">Ketersediaan Stok Barang</h2>
           
-          <div className="flex gap-2">
-            {/* Tombol Khusus Admin buat Master Barang */}
-            {user.Role_Akses === 'Admin' && (
-              <button 
-                onClick={() => navigate('/tambah-barang')}
-                className="bg-green-600 text-white font-bold py-2 px-4 rounded hover:bg-green-700 transition shadow"
-              >
-                + Tambah Barang Baru
-              </button>
-            )}
+ <div className="flex gap-2">
             
-            {/* Tombol Biru Muda buat Kelola Supplier */}
-         {user.Role_Akses === 'Admin' && (
-           <button 
-             onClick={() => navigate('/supplier')}
-             className="bg-blue-400 text-white font-bold py-2 px-4 rounded hover:bg-blue-500 transition shadow"
-           >
-             Kelola Supplier
-           </button>
-         )}
+            {/* 👑 ADMIN ONLY: Boleh ngurus "Dapur" (Master Data) */}
+            {user.Role_Akses === 'Admin' && (
+              <>
+                <button onClick={() => navigate('/tambah-barang')} className="bg-green-600 text-white font-bold py-2 px-4 rounded hover:bg-green-700 transition shadow">
+                  + Tambah Barang Baru
+                </button>
+                <button onClick={() => navigate('/supplier')} className="bg-blue-400 text-white font-bold py-2 px-4 rounded hover:bg-blue-500 transition shadow">
+                  Kelola Supplier
+                </button>
+              </>
+            )}
 
-            <button 
-           onClick={() => navigate('/riwayat')}
-           className="bg-gray-700 text-white font-bold py-2 px-4 rounded hover:bg-gray-900 transition shadow"
-         >
-           Lihat Audit Trail
-         </button>
+            {/* 🌐 SEMUA ROLE (Admin, Spv, Staf): Boleh liat log riwayat */}
+            <button onClick={() => navigate('/riwayat')} className="bg-gray-700 text-white font-bold py-2 px-4 rounded hover:bg-gray-900 transition shadow">
+              Lihat Audit Trail
+            </button>
 
-            {/* Tombol Khusus Staf / Admin buat Transaksi */}
+            {/* 👷‍♂️ STAF & ADMIN ONLY: Boleh input transaksi */}
+            {/* SPV NGGAK BAKAL NGE-LIHAT TOMBOL INI */}
             {(user.Role_Akses === 'Staf' || user.Role_Akses === 'Admin') && (
-              <button 
-                onClick={() => navigate('/barang-masuk')}
-                className="bg-yellow-accent text-navy-main font-bold py-2 px-4 rounded hover:bg-yellow-500 transition shadow"
-              >
-                + Catat Barang Masuk
+              <button onClick={() => navigate('/barang-masuk')} className="bg-yellow-accent text-navy-main font-bold py-2 px-4 rounded hover:bg-yellow-500 transition shadow">
+                + Input Transaksi (Masuk/Keluar)
               </button>
             )}
-            {/* Tombol Barang Keluar (Biar warnanya kontras, pakai warna merah) */}
           </div>
         </div>
 
@@ -282,13 +272,13 @@ export default function Dashboard() {
                           <div className="flex gap-2">
                             <button 
                               onClick={() => handleApprove(trx.id_masuk)}
-                              className="bg-navy-main hover:bg-blue-900 text-white font-bold py-1 px-3 rounded shadow"
+                              className="bg-green-600 hover:bg-green-800 text-white font-bold py-1 px-3 rounded shadow"
                             >
                               Approve
                             </button>
                             <button 
                               onClick={() => handleReject(trx.id_masuk)}
-                              className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded shadow"
+                              className="bg-gray-700 hover:bg-gray-900 text-white font-bold py-1 px-3 rounded shadow"
                             >
                               Reject
                             </button>
@@ -309,7 +299,7 @@ export default function Dashboard() {
           </div>
            
 <div className="mt-12">
-  <h2 className="text-2xl font-bold text-orange-600 mb-6">
+  <h2 className="text-2xl font-bold text-navy-main mb-6">
   Antrean Persetujuan Barang Keluar
 </h2>
 
@@ -317,7 +307,7 @@ export default function Dashboard() {
     <table className="w-full text-left border-collapse">
       
       <thead>
-        <tr className="bg-orange-100 text-orange-800">
+        <tr className="bg-yellow-accent text-navy-main">
           <th className="p-4 border-b border-orange-200">ID Keluar</th>
           <th className="p-4 border-b border-orange-200">Tanggal</th>
           <th className="p-4 border-b border-orange-200">ID Barang</th>

@@ -43,24 +43,31 @@ export default function BarangMasuk() { // Nama file tetep BarangMasuk biar ngga
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      let response;
       if (activeTab === 'masuk') {
-        // Nembak API Masuk
-        await axios.post('http://localhost:8000/api/barang-masuk', {
-          ID_Barang: idBarang, ID_Supplier: idSupplier, Qty_Masuk: qty, 
+        response = await axios.post('http://localhost:8000/api/barang-masuk', {
+          ID_Barang: idBarang, ID_Supplier: idSupplier, Qty_Masuk: qty,
           ID_Pegawai: user.ID_Pegawai || user.id_pegawai || 'P001'
         });
       } else {
-        // Nembak API Keluar
-        await axios.post('http://localhost:8000/api/barang-keluar', {
-          ID_Barang: idBarang, Tujuan: tujuan, Qty_Keluar: qty, 
+        response = await axios.post('http://localhost:8000/api/barang-keluar', {
+          ID_Barang: idBarang, Tujuan: tujuan, Qty_Keluar: qty,
           ID_Pegawai: user.ID_Pegawai || user.id_pegawai || 'P001'
         });
       }
-      
+
+      // --- JENG JENG! INI PENANGKAL GHOST BUG-NYA ---
+      if (response.data.success === false) {
+        alert(`TERCYDUK ERROR BACKEND:\n${response.data.message}`);
+        return; // Fungsi di-stop di sini, lu nggak bakal dilempar ke Dashboard!
+      }
+
+      // Kalau lolos pengecekan di atas, berarti beneran sukses
       alert(`Transaksi Barang ${activeTab === 'masuk' ? 'Masuk' : 'Keluar'} dicatat! Menunggu Approve SPV.`);
       navigate('/dashboard');
+      
     } catch (err) {
-      alert(`ERROR: ${err.response?.data?.message || err.message}`);
+      alert(`ERROR AXIOS: ${err.response?.data?.message || err.message}`);
     }
   };
 

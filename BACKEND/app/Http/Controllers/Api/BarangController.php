@@ -16,6 +16,7 @@ class BarangController extends Controller
     }
 
     // 2. CREATE: Tambah Barang Baru
+   // 2. CREATE: Tambah Barang Baru
     public function store(Request $request)
     {
         // 1. Validasi: Nama Barang HARUS ada hurufnya (nggak boleh pure angka)
@@ -31,18 +32,30 @@ class BarangController extends Controller
         // 2. Bikin ID Otomatis (Contoh hasil: BRG-8392)
         $idOtomatis = 'BRG-' . rand(1000, 9999);
 
-        // 3. Simpan ke database
-        $barang = Barang::create([
-            'ID_Barang'   => $idOtomatis,
-            'ID_Kategori' => $request->ID_Kategori,
-            'Nama_Barang' => $request->Nama_Barang,
-            'Stok'        => $request->Stok,
-            'Satuan'      => $request->Satuan
-        ]);
+        try {
+            // 3. Simpan ke database
+            $barang = Barang::create([
+                'ID_Barang'   => $idOtomatis,
+                'ID_Kategori' => $request->ID_Kategori,
+                'Nama_Barang' => $request->Nama_Barang,
+                'Stok'        => $request->Stok,
+                'Satuan'      => $request->Satuan
+            ]);
 
-        return response()->json(['success' => true, 'message' => 'Barang berhasil ditambahkan!', 'data' => $barang], 201);
+            // 4. CATAT KE AUDIT LOG (CCTV Admin)
+            \Illuminate\Support\Facades\DB::table('AUDIT_LOG')->insert([
+                'ID_Log'     => rand(10000, 99999),
+                'ID_Pegawai' => $request->ID_Pegawai ?? 'P001', // Ambil ID Pegawai dari React, atau P001 kalau kosong
+                'Aktivitas'  => 'Admin Menambah Barang Baru: ' . $idOtomatis . ' (' . $request->Nama_Barang . ')',
+                'Waktu'      => now()
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Barang berhasil ditambahkan!', 'data' => $barang], 201);
+            
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal nyimpen barang atau log: ' . $e->getMessage()], 500);
+        }
     }
-
     // 3. UPDATE: Edit Data Barang
     public function update(Request $request, $id)
     {
