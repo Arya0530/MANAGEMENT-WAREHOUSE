@@ -7,6 +7,11 @@ export default function EditBarang() {
   const [namaBarang, setNamaBarang] = useState('');
   const [stok, setStok] = useState('');
   const [satuan, setSatuan] = useState('Kg');
+  
+  // TAMBAHAN: State buat nangkep batas gudang dari Oracle
+  const [batasMinimum, setBatasMinimum] = useState('');
+  const [kapasitasMax, setKapasitasMax] = useState('');
+  
   const [pesan, setPesan] = useState({ text: '', type: '' });
   
   const navigate = useNavigate();
@@ -20,16 +25,20 @@ export default function EditBarang() {
       // Narik data barang yang mau diedit
       axios.get('http://localhost:8000/api/barang')
         .then(res => {
-          const barangLama = res.data.data.find(b => b.id_barang === id);
+          const barangLama = res.data.data.find(b => (b.id_barang || b.ID_BARANG) === id);
           if (barangLama) {
-            setNamaBarang(barangLama.nama_barang);
-            setStok(barangLama.stok);
-            setSatuan(barangLama.satuan);
+            setNamaBarang(barangLama.nama_barang || barangLama.NAMA_BARANG);
+            setStok(barangLama.stok || barangLama.STOK);
+            setSatuan(barangLama.satuan || barangLama.SATUAN);
+            
+            // TAMBAHAN: Nangkep data batas dari Oracle (Handle huruf besar/kecil)
+            setBatasMinimum(barangLama.batas_minimum || barangLama.BATAS_MINIMUM || 5);
+            setKapasitasMax(barangLama.kapasitas_max || barangLama.KAPASITAS_MAX || 50);
           }
         })
         .catch(err => console.error(err));
     }
-    }, [id]);
+  }, [id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,15 +48,17 @@ export default function EditBarang() {
       await axios.put(`http://localhost:8000/api/barang/${id}`, {
         Nama_Barang: namaBarang,
         Stok: stok,
-        Satuan: satuan
+        Satuan: satuan,
+        Batas_Minimum: batasMinimum, // KIRIM KE LARAVEL
+        Kapasitas_Max: kapasitasMax  // KIRIM KE LARAVEL
       });
 
-      setPesan({ text: 'Barang berhasil diupdate!', type: 'success' });
+      setPesan({ text: '✅ Barang dan Kapasitas berhasil diupdate!', type: 'success' });
       // Otomatis balik ke dashboard setelah 1.5 detik
       setTimeout(() => navigate('/dashboard'), 1500);
     } catch (err) {
       const errorAsli = err.response?.data?.message || err.message;
-      setPesan({ text: `Gagal: ${errorAsli}`, type: 'error' });
+      setPesan({ text: `🚨 Gagal: ${errorAsli}`, type: 'error' });
     }
   };
 
@@ -70,19 +81,16 @@ export default function EditBarang() {
 
           <form onSubmit={handleSubmit} className="space-y-4 text-left">
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Nama Barang Baru</label>
               <label className="block text-gray-700 font-medium mb-1">Nama Barang</label>
               <input 
                 type="text" 
                 className="w-full p-2 border rounded focus:ring-2 focus:ring-navy-main" 
-                placeholder="Contoh: Ayam Potong" 
                 value={namaBarang} 
                 onChange={(e) => setNamaBarang(e.target.value)} 
                 required 
-                pattern=".*[a-zA-Z]+.*" 
-                title="Nama barang tidak boleh angka saja, harus ada hurufnya!"
               />
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-gray-700 font-medium mb-1">Update Stok</label>
@@ -97,8 +105,27 @@ export default function EditBarang() {
                 </select>
               </div>
             </div>
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-800 text-white font-bold py-3 px-4 rounded mt-4">
-              Update Barang
+            
+  {/* FITUR KAPASITAS (Cuma Max doang, Min diitung sistem) */}
+            <div className="pt-2 border-t mt-4">
+              <label className="block text-gray-700 font-medium mb-1 text-sm text-blue-600">
+                Kapasitas Maksimum Gudang
+              </label>
+              <input 
+                type="number" 
+                min="1" 
+                className="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500 font-bold" 
+                value={kapasitasMax} 
+                onChange={(e) => setKapasitasMax(e.target.value)} 
+                required 
+              />
+              <p className="text-xs text-gray-500 mt-1 italic">
+                *Sistem akan otomatis memberikan peringatan "Menipis" jika stok menyentuh 10% dari Kapasitas Maksimum.
+              </p>
+            </div>
+
+            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-800 text-white font-bold py-3 px-4 rounded mt-6">
+              Update Barang & Kapasitas
             </button>
           </form>
         </div>

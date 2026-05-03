@@ -29,7 +29,9 @@ class SupplierController extends Controller
             'ID_Supplier'   => $newId,
             'Nama_Supplier' => $request->Nama_Supplier,
             'Kontak'        => $request->Kontak,
-            'Alamat'        => $request->Alamat
+            'Alamat'        => $request->Alamat,
+            'Batas_Minimum' => 'required|numeric', // Tambahan
+            'Kapasitas_Max' => 'required|numeric'  // Tambahan
         ]);
 
         return response()->json(['success' => true, 'message' => 'Supplier berhasil ditambahkan!']);

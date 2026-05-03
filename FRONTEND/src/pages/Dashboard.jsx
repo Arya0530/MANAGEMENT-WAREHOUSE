@@ -172,56 +172,86 @@ export default function Dashboard() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-navy-main text-white">
-                <th className="p-4 border-b">ID Barang</th>
-                <th className="p-4 border-b">Kategori</th>
-                <th className="p-4 border-b">Nama Barang</th>
-                <th className="p-4 border-b">Stok</th>
-                <th className="p-4 border-b">Satuan</th>
-                <th className="p-4 border-b">Aksi</th>
+                <th className="p-4">ID</th>
+                <th className="p-4">Nama Barang</th>
+                <th className="p-4">Stok / Kapasitas</th>
+                <th className="p-4">Status Gudang</th>
+                <th className="p-4">Satuan</th>
+                <th className="p-4">Aksi</th>
               </tr>
             </thead>
-            <tbody>
-              {barang.length > 0 ? (
-                barang.map((item) => (
-                  <tr key={item.id_barang} className="hover:bg-gray-50 border-b transition">
-                    <td className="p-4">{item.id_barang}</td>
-                    <td className="p-4">{item.id_kategori}</td>
-                    <td className="p-4 font-semibold text-navy-main">{item.nama_barang}</td>
-                    <td className="p-4">
-                      <span className={`px-3 py-1 rounded-full text-sm font-bold ${item.stok < 10 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                        {item.stok}
-                      </span>
-                    </td>
-                    <td className="p-4">{item.satuan}</td>
-                    <td className="p-4">
-                      {user.Role_Akses === 'Admin' && (
-                        <div className="flex gap-2">
-                          <button 
-                            onClick={() => navigate(`/edit-barang/${item.id_barang}`)}
-                            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded shadow text-sm"
-                          >
-                            Edit
-                          </button>
-                          
-                          <button 
-                            onClick={() => handleDelete(item.id_barang)}
-                            className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded shadow text-sm"
-                          >
-                            Hapus
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="5" className="p-8 text-center text-gray-500 italic">
-                    Belum ada data barang di gudang.
-                  </td>
-                </tr>
-              )}
-            </tbody>
+          {/* TABEL MASTER BARANG */}
+          <tbody>
+            {barang.length > 0 ? (
+              barang.map((item) => {
+                // 1. AMBIL STOK & MAX (Batas Min nggak usah ditarik dari DB lagi)
+                const stok = Number(item.stok || item.STOK || 0);
+                const kMax = Number(item.kapasitas_max || item.KAPASITAS_MAX || 50);
+                
+                // 2. SISTEM menghitung 10% otomatis 
+                const batasMenipis = Math.floor(kMax * 0.10); 
+
+                // 2. LOGIKA 5 STATUS GUDANG 
+                let statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">✅ Aman</span>;
+                
+                if (stok > kMax) {
+                  // Lebih dari Kapasitas
+                  statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700">🛑 Overload</span>;
+                } else if (stok === kMax) {
+                  // Pas banget Maksimal
+                  statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">⚠️ Maksimum</span>;
+                } else if (stok === 0) {
+                  // 🔥 TAMBAHAN: STOK HABIS TOTAL
+                  statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-black text-white">❌ Stok Habis</span>;
+                } else if (stok <= batasMenipis) {
+                  // Menipis (di bawah 10% tapi belum nol)
+                  statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">🚨 Menipis</span>;
+                }
+
+          
+                return (
+                  <tr key={item.id_barang || item.ID_BARANG} className="hover:bg-gray-50 border-b transition">
+                    <td className="p-4">{item.id_barang || item.ID_BARANG}</td>
+                    <td className="p-4 font-bold">{item.nama_barang || item.NAMA_BARANG}</td>
+                    
+                    {/* Tampilkan Stok vs Kapasitas Max */}
+                    <td className="p-4 font-semibold">{stok} / {kMax}</td>
+                    
+                    {/*  variabel statusLabel*/}
+                    <td className="p-4">{statusLabel}</td>
+                    
+                    <td className="p-4">{item.satuan || item.SATUAN}</td>
+
+          <td className="p-4">
+            {user.Role_Akses === 'Admin' && (
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => navigate(`/edit-barang/${item.id_barang || item.ID_BARANG}`)}
+                  className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded shadow text-sm"
+                >
+                  Edit
+                </button>
+
+                <button 
+                  onClick={() => handleDelete(item.id_barang || item.ID_BARANG)}
+                  className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded shadow text-sm"
+                >
+                  Hapus
+                </button>
+              </div>
+            )}
+          </td>
+        </tr>
+      );
+    })
+  ) : (
+    <tr>
+      <td colSpan="6" className="p-8 text-center text-gray-500 italic">
+        Belum ada data barang di gudang.
+      </td>
+    </tr>
+  )}
+</tbody>
           </table>
         </div>
 

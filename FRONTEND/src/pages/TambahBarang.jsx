@@ -2,24 +2,26 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-
 export default function TambahBarang() {
   const [idKategori, setIdKategori] = useState(''); 
   const [namaBarang, setNamaBarang] = useState('');
   const [stok, setStok] = useState('');
   const [satuan, setSatuan] = useState('Kg');
+  
+  // TAMBAHAN: State buat Kapasitas Gudang (Min kita default aja 0)
+  const [kapasitasMax, setKapasitasMax] = useState('50');
+  
   const [pesan, setPesan] = useState({ text: '', type: '' });
   const [listKategori, setListKategori] = useState([]);
   
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
 
-  // Cuma Admin yang boleh nambah barang master
-  if (!user || user.Role_Akses !== 'Admin') {
-    navigate('/dashboard');
-    return null;
-  }
   useEffect(() => {
+    if (!user || user.Role_Akses !== 'Admin') {
+      navigate('/dashboard');
+      return;
+    }
     axios.get('http://localhost:8000/api/kategori')
       .then(res => {
         setListKategori(res.data.data);
@@ -37,10 +39,12 @@ export default function TambahBarang() {
         ID_Kategori: idKategori,
         Nama_Barang: namaBarang,
         Stok: stok,
-        Satuan: satuan
+        Satuan: satuan,
+        Batas_Minimum: 0, // Sengaja di-0 karena kita itung otomatis 10% di Dashboard
+        Kapasitas_Max: kapasitasMax // Kirim data kapasitas ke Laravel
       });
 
-      setPesan({ text: response.data.message, type: 'success' });
+      setPesan({ text: '✅ Barang berhasil disimpan!', type: 'success' });
       setNamaBarang(''); setStok('');
     } catch (err) {
       const errorAsli = err.response?.data?.message || err.message;
@@ -84,6 +88,7 @@ export default function TambahBarang() {
               <label className="block text-gray-700 font-medium mb-1">Nama Barang</label>
               <input type="text" className="w-full p-2 border rounded focus:ring-2 focus:ring-navy-main" placeholder="Contoh: Ayam Potong" value={namaBarang} onChange={(e) => setNamaBarang(e.target.value)} required />
             </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-gray-700 font-medium mb-1">Stok Awal</label>
@@ -98,6 +103,25 @@ export default function TambahBarang() {
                 </select>
               </div>
             </div>
+
+            {/* TAMBAHAN FITUR: Input Kapasitas Maksimum Gudang */}
+            <div className="pt-2 border-t mt-4">
+              <label className="block text-gray-700 font-medium mb-1 text-sm text-blue-600">
+                Kapasitas Maksimum Gudang
+              </label>
+              <input 
+                type="number" 
+                min="1" 
+                className="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500 font-bold" 
+                value={kapasitasMax} 
+                onChange={(e) => setKapasitasMax(e.target.value)} 
+                required 
+              />
+              <p className="text-xs text-gray-500 mt-1 italic">
+                *Sistem akan otomatis memberikan peringatan "Menipis" jika stok menyentuh 10% dari Kapasitas Maksimum.
+              </p>
+            </div>
+
             <button type="submit" className="w-full bg-navy-main hover:bg-blue-900 text-white font-bold py-3 px-4 rounded mt-4">
               Simpan Barang
             </button>

@@ -12,8 +12,15 @@ class Barang extends Model
     protected $keyType = 'string';
     public $timestamps = false;
 
-    protected $fillable = ['ID_Barang', 'ID_Kategori', 'Nama_Barang', 'Stok', 'Satuan'];
-
+    protected $fillable = [
+    'ID_Barang', 
+    'ID_Kategori', 
+    'Nama_Barang', 
+    'Stok', 
+    'Satuan',
+    'batas_minimum', // TAMBAHIN INI
+    'kapasitas_max'  // TAMBAHIN INI
+];
     // Relasi ke Kategori
     public function kategori()
     {
