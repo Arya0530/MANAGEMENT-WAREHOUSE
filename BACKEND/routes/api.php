@@ -5,6 +5,9 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BarangController;
 use App\Http\Controllers\Api\TransaksiController;
 use App\Http\Controllers\Api\SupplierController;
+use App\Http\Controllers\Api\AlertController;
+use App\Http\Controllers\Api\AnalyticsController;
+use App\Http\Controllers\Api\ReportController;
 
 // AUTH
 Route::post('/login', [AuthController::class, 'login']);
@@ -30,6 +33,12 @@ Route::delete('/supplier/{id}', [SupplierController::class, 'destroy']);
 // RIWAYAT
 Route::get('/riwayat', [TransaksiController::class, 'riwayat']);
 
+// ALERTS
+Route::get('/alerts/low-stock', [AlertController::class, 'lowStock']);
+
+// ANALYTICS
+Route::get('/analytics/summary', [AnalyticsController::class, 'summary']);
+
 // ==========================
 // 🔽 BARANG MASUK
 // ==========================
@@ -45,4 +54,9 @@ Route::post('/barang-keluar', [TransaksiController::class, 'keluar']);
 Route::get('/pending-keluar', [TransaksiController::class, 'pendingKeluar']);
 Route::post('/approve-keluar/{id}', [TransaksiController::class, 'approveKeluar']);
 Route::post('/reject-keluar/{id}', [TransaksiController::class, 'rejectKeluar']);
+
+// REPORTS (PDF)
+Route::get('/reports/riwayat/pdf', [ReportController::class, 'riwayatPdf']);
+Route::get('/reports/restock/pdf', [ReportController::class, 'restockPdf']);
+Route::get('/reports/analytics/pdf', [ReportController::class, 'analyticsPdf']);
 

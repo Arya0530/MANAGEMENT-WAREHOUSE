@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Barang;
+use App\Services\AuditLogger;
 
 class BarangController extends Controller
 {
@@ -42,6 +43,12 @@ public function index()
                 'KAPASITAS_MAX' => $request->Kapasitas_Max
             ]);
 
+            $pegawaiId = $request->input('ID_Pegawai') ?: $request->input('id_pegawai');
+            AuditLogger::record(
+                $pegawaiId,
+                'Tambah Barang: ' . $idOtomatis . ' - ' . $request->Nama_Barang
+            );
+
             return response()->json(['success' => true, 'message' => '✅ Barang berhasil ditambahkan ke Gudang!'], 201);
 
         } catch (\Exception $e) {
@@ -56,6 +63,12 @@ public function index()
                     'batas_minimum' => $request->Batas_Minimum,
                     'kapasitas_max' => $request->Kapasitas_Max
                 ]);
+                $pegawaiId = $request->input('ID_Pegawai') ?: $request->input('id_pegawai');
+                AuditLogger::record(
+                    $pegawaiId,
+                    'Tambah Barang: ' . $idOtomatis . ' - ' . $request->Nama_Barang
+                );
+
                 return response()->json(['success' => true, 'message' => '✅ Barang berhasil ditambahkan ke Gudang!'], 201);
             } catch (\Exception $e2) {
                 // Kalau beneran error DB, error aslinya bakal dikirim ke React biar lu tau
@@ -97,6 +110,12 @@ public function index()
                 return response()->json(['success' => false, 'message' => 'Gagal nemu ID Barang!'], 404);
             }
 
+            $pegawaiId = $request->input('ID_Pegawai') ?: $request->input('id_pegawai');
+            AuditLogger::record(
+                $pegawaiId,
+                'Edit Barang: ' . $id
+            );
+
             return response()->json(['success' => true, 'message' => 'Berhasil diupdate paksa!'], 200);
 
         } catch (\Exception $e) {
@@ -105,7 +124,7 @@ public function index()
     }
 
     // 4. DELETE: Hapus Barang
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         try {
             // Niatnya ngehapus barang
@@ -114,6 +133,9 @@ public function index()
             if ($affected === 0) {
                 return response()->json(['success' => false, 'message' => 'Barang tidak ditemukan!'], 404);
             }
+
+            $pegawaiId = $request->query('id_pegawai') ?: $request->input('ID_Pegawai');
+            AuditLogger::record($pegawaiId, 'Hapus Barang: ' . $id);
 
             return response()->json(['success' => true, 'message' => 'Barang berhasil dihapus!'], 200);
 

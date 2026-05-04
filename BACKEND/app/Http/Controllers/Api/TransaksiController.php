@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\BarangMasuk;
+use App\Services\AuditLogger;
+use App\Services\ReportService;
 
 class TransaksiController extends Controller
 {
@@ -33,6 +35,11 @@ class TransaksiController extends Controller
             'Status'      => 'PENDING'
         ]);
 
+        AuditLogger::record(
+            $request->ID_Pegawai,
+            'Transaksi Masuk dibuat: ' . $idMasukOtomatis . ' (Barang ' . $request->ID_Barang . ', Qty ' . $request->Qty_Masuk . ')'
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'Barang masuk dicatat dengan ID: ' . $idMasukOtomatis,
@@ -50,7 +57,7 @@ class TransaksiController extends Controller
     }
 
     // 2. APPROVE Barang Keluar (Di sini stok baru dipotong!)
-    public function approveKeluar($id)
+    public function approveKeluar(Request $request, $id)
     {
         try {
             \Illuminate\Support\Facades\DB::beginTransaction();
@@ -67,6 +74,8 @@ class TransaksiController extends Controller
                 ->decrement('Stok', $trx->qty_keluar);
 
             \Illuminate\Support\Facades\DB::commit();
+            $pegawaiId = $request->query('id_pegawai') ?: $request->input('ID_Pegawai');
+            AuditLogger::record($pegawaiId, 'Approve Barang Keluar: ' . $id);
             return response()->json(['success' => true, 'message' => 'Barang Keluar di-Approve & Stok terpotong!']);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\DB::rollBack();
@@ -75,9 +84,11 @@ class TransaksiController extends Controller
     }
 
     // 3. REJECT Barang Keluar
-    public function rejectKeluar($id)
+    public function rejectKeluar(Request $request, $id)
     {
         \Illuminate\Support\Facades\DB::table('BARANG_KELUAR')->where('id_keluar', $id)->update(['status' => 'REJECTED']);
+        $pegawaiId = $request->query('id_pegawai') ?: $request->input('ID_Pegawai');
+        AuditLogger::record($pegawaiId, 'Reject Barang Keluar: ' . $id);
         return response()->json(['success' => true, 'message' => 'Transaksi Keluar DITOLAK!']);
     }
 
@@ -88,48 +99,7 @@ class TransaksiController extends Controller
             $role = $request->query('role');
             $idPegawai = $request->query('id_pegawai');
 
-            $masukQuery = \Illuminate\Support\Facades\DB::table('BARANG_MASUK')
-                ->select('ID_Masuk as id', 'Tgl_Masuk as tanggal', 'ID_Barang as id_barang', 'Qty_Masuk as qty', 'Status as status', 'ID_Pegawai as pembuat');
-
-            $keluarQuery = \Illuminate\Support\Facades\DB::table('BARANG_KELUAR')
-                ->select('ID_Keluar as id', 'Tgl_Keluar as tanggal', 'ID_Barang as id_barang', 'Qty_Keluar as qty', 'Status as status', 'ID_Pegawai as pembuat');
-
-            // Filter Kasta Staf: Cuma liat transaksinya sendiri
-            if ($role === 'Staf') {
-                $masukQuery->where('ID_Pegawai', $idPegawai);
-                $keluarQuery->where('ID_Pegawai', $idPegawai);
-            }
-
-            $masuk = $masukQuery->get()->map(function ($item) {
-                $item->jenis = 'Barang Masuk';
-                return $item;
-            });
-
-            $keluar = $keluarQuery->get()->map(function ($item) {
-                $item->jenis = 'Barang Keluar';
-                return $item;
-            });
-
-            // Gabungin transaksi Masuk & Keluar
-            $riwayat = $masuk->merge($keluar);
-
-            // --- JENG JENG! KHUSUS ADMIN BISA LIAT AUDIT_LOG MASTER ---
-            if ($role === 'Admin') {
-                $auditLog = \Illuminate\Support\Facades\DB::table('AUDIT_LOG')
-                    // Diakalin karena log ga punya ID_Barang, Qty, dan Status. Diisi '-' aja.
-                    ->select('ID_Log as id', 'Waktu as tanggal', \Illuminate\Support\Facades\DB::raw("'-' as id_barang"), \Illuminate\Support\Facades\DB::raw("'-' as qty"), 'Aktivitas as status', 'ID_Pegawai as pembuat')
-                    ->get()
-                    ->map(function ($item) {
-                        $item->jenis = 'Aktivitas Admin';
-                        return $item;
-                    });
-                
-                // Gabungin log master ke riwayat transaksi
-                $riwayat = $riwayat->merge($auditLog);
-            }
-
-            // Urutin semua data berdasarkan tanggal dari yang terbaru
-            $riwayat = $riwayat->sortByDesc('tanggal')->values()->all();
+            $riwayat = ReportService::riwayat($role, $idPegawai);
 
             return response()->json(['success' => true, 'data' => $riwayat], 200);
 
@@ -160,6 +130,11 @@ class TransaksiController extends Controller
                 'Status'     => 'PENDING' // <-- Ditahan SPV
             ]);
 
+            AuditLogger::record(
+                $request->ID_Pegawai,
+                'Transaksi Keluar dibuat: ' . $idKeluarOtomatis . ' (Barang ' . $request->ID_Barang . ', Qty ' . $request->Qty_Keluar . ')'
+            );
+
             return response()->json(['success' => true, 'message' => 'Permintaan Barang Keluar dicatat! Menunggu persetujuan SPV.'], 200);
 
         } catch (\Exception $e) {
@@ -179,7 +154,7 @@ class TransaksiController extends Controller
     }
 
     // 2. APPROVE Barang Masuk (Nambah Stok)
-    public function approveMasuk($id)
+    public function approveMasuk(Request $request, $id)
     {
         try {
             \Illuminate\Support\Facades\DB::beginTransaction();
@@ -194,6 +169,8 @@ class TransaksiController extends Controller
                 ->increment('Stok', $trx->qty_masuk);
 
             \Illuminate\Support\Facades\DB::commit();
+            $pegawaiId = $request->query('id_pegawai') ?: $request->input('ID_Pegawai');
+            AuditLogger::record($pegawaiId, 'Approve Barang Masuk: ' . $id);
             return response()->json(['success' => true, 'message' => 'Barang Masuk di-Approve & Stok bertambah!']);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\DB::rollBack();
@@ -202,9 +179,11 @@ class TransaksiController extends Controller
     }
 
     // 3. REJECT Barang Masuk
-    public function rejectMasuk($id)
+    public function rejectMasuk(Request $request, $id)
     {
         \Illuminate\Support\Facades\DB::table('BARANG_MASUK')->where('id_masuk', $id)->update(['status' => 'REJECTED']);
+        $pegawaiId = $request->query('id_pegawai') ?: $request->input('ID_Pegawai');
+        AuditLogger::record($pegawaiId, 'Reject Barang Masuk: ' . $id);
         return response()->json(['success' => true, 'message' => 'Transaksi Masuk DITOLAK!']);
     }
 } // <--- Ini kurung kurawal penutup file (class) lu
