@@ -6,6 +6,7 @@ import TambahBarang from "./pages/TambahBarang";
 import EditBarang from "./pages/EditBarang";
 import LaporanRiwayat from "./pages/LaporanRiwayat";
 import KelolaSupplier from "./pages/KelolaSupplier";
+import AnalyticsDashboard from "./pages/AnalyticsDashboard";
 
 
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="/edit-barang/:id" element={<EditBarang />} />
         <Route path="/riwayat" element={<LaporanRiwayat />} />
         <Route path="/supplier" element={<KelolaSupplier />} />
+        <Route path="/analytics" element={<AnalyticsDashboard />} />
 
       </Routes>
     </BrowserRouter>

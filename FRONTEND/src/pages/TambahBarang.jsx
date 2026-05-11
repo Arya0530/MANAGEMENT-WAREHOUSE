@@ -40,8 +40,9 @@ export default function TambahBarang() {
         Nama_Barang: namaBarang,
         Stok: stok,
         Satuan: satuan,
-        Batas_Minimum: 0, // Sengaja di-0 karena kita itung otomatis 10% di Dashboard
-        Kapasitas_Max: kapasitasMax // Kirim data kapasitas ke Laravel
+        Batas_Minimum: 5,
+        Kapasitas_Max: kapasitasMax,
+        ID_Pegawai: user.ID_Pegawai || user.id_pegawai || 'P001'
       });
 
       setPesan({ text: '✅ Barang berhasil disimpan!', type: 'success' });
@@ -118,7 +119,7 @@ export default function TambahBarang() {
                 required 
               />
               <p className="text-xs text-gray-500 mt-1 italic">
-                *Sistem akan otomatis memberikan peringatan "Menipis" jika stok menyentuh 10% dari Kapasitas Maksimum.
+                *Sistem akan memberikan peringatan "Menipis" jika stok &lt;= 5.
               </p>
             </div>
 

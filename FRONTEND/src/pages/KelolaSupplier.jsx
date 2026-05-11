@@ -8,6 +8,7 @@ export default function KelolaSupplier() {
   const [kontak, setKontak] = useState('');
   const [alamat, setAlamat] = useState('');
   const navigate = useNavigate();
+  const user = JSON.parse(localStorage.getItem('user'));
 
   const fetchSuppliers = () => {
     axios.get('http://localhost:8000/api/supplier')
@@ -25,7 +26,8 @@ export default function KelolaSupplier() {
       await axios.post('http://localhost:8000/api/supplier', {
         Nama_Supplier: nama,
         Kontak: kontak,
-        Alamat: alamat
+        Alamat: alamat,
+        ID_Pegawai: user?.ID_Pegawai || user?.id_pegawai || 'P001'
       });
       alert('Supplier Berhasil Ditambahkan!');
       setNama(''); setKontak(''); setAlamat('');
@@ -38,7 +40,9 @@ export default function KelolaSupplier() {
   const handleDelete = async (id) => {
     if(window.confirm('Yakin mau hapus supplier ini?')) {
       try {
-        await axios.delete(`http://localhost:8000/api/supplier/${id}`);
+        await axios.delete(`http://localhost:8000/api/supplier/${id}`, {
+          params: { id_pegawai: user?.ID_Pegawai || user?.id_pegawai || 'P001' }
+        });
         fetchSuppliers();
       } catch (err) {
         alert(err.response?.data?.message || 'Gagal menghapus supplier!');

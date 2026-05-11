@@ -50,7 +50,8 @@ export default function EditBarang() {
         Stok: stok,
         Satuan: satuan,
         Batas_Minimum: batasMinimum, // KIRIM KE LARAVEL
-        Kapasitas_Max: kapasitasMax  // KIRIM KE LARAVEL
+        Kapasitas_Max: kapasitasMax,  // KIRIM KE LARAVEL
+        ID_Pegawai: user.ID_Pegawai || user.id_pegawai || 'P001'
       });
 
       setPesan({ text: '✅ Barang dan Kapasitas berhasil diupdate!', type: 'success' });
@@ -120,7 +121,7 @@ export default function EditBarang() {
                 required 
               />
               <p className="text-xs text-gray-500 mt-1 italic">
-                *Sistem akan otomatis memberikan peringatan "Menipis" jika stok menyentuh 10% dari Kapasitas Maksimum.
+                *Sistem akan memberikan peringatan "Menipis" jika stok &lt;= 5.
               </p>
             </div>
 

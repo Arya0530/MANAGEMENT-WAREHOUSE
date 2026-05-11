@@ -7,6 +7,34 @@ export default function LaporanRiwayat() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
 
+  const formatTimestamp = (value) => {
+    if (!value) return '';
+    const text = String(value).replace('T', ' ');
+    return text.substring(0, 19);
+  };
+
+  const downloadPdf = async () => {
+    try {
+      const response = await axios.get('http://localhost:8000/api/reports/riwayat/pdf', {
+        params: {
+          role: user.Role_Akses,
+          id_pegawai: user.ID_Pegawai || user.id_pegawai || 'P001'
+        },
+        responseType: 'blob'
+      });
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = 'laporan_riwayat.pdf';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      alert('Gagal download PDF');
+    }
+  };
+
   useEffect(() => {
     // Kalau belum login, tendang ke halaman login
     if (!user) {
@@ -38,12 +66,20 @@ export default function LaporanRiwayat() {
         {/* Header Audit Trail */}
         <div className="bg-gray-800 p-6 text-white flex justify-between items-center">
           <h2 className="text-2xl font-bold">Audit Trail (Riwayat Transaksi)</h2>
-          <button 
-            onClick={() => navigate('/dashboard')} 
-            className="bg-yellow-accent text-navy-main px-4 py-2 rounded font-bold hover:bg-yellow-500 transition shadow"
-          >
-            Kembali ke Dashboard
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={downloadPdf} 
+              className="bg-white text-gray-800 px-4 py-2 rounded font-bold hover:bg-gray-100 transition shadow"
+            >
+              Export PDF
+            </button>
+            <button 
+              onClick={() => navigate('/dashboard')} 
+              className="bg-yellow-accent text-navy-main px-4 py-2 rounded font-bold hover:bg-yellow-500 transition shadow"
+            >
+              Kembali ke Dashboard
+            </button>
+          </div>
         </div>
 
         {/* Tabel Riwayat */}
@@ -54,9 +90,11 @@ export default function LaporanRiwayat() {
                 <th className="p-4 font-bold">ID Transaksi</th>
                 <th className="p-4 font-bold">Tanggal</th>
                 <th className="p-4 font-bold">Jenis Aktivitas</th>
+                <th className="p-4 font-bold">Nama</th>
+                <th className="p-4 font-bold">Role</th>
                 <th className="p-4 font-bold">ID Barang</th>
                 <th className="p-4 font-bold">Qty</th>
-                <th className="p-4 font-bold">Status</th>
+                <th className="p-4 font-bold">Aktivitas/Status</th>
               </tr>
             </thead>
             <tbody>
@@ -69,12 +107,16 @@ export default function LaporanRiwayat() {
                   const idBrg = item.id_barang || item.ID_BARANG;
                   const qty = item.qty || item.QTY;
                   const status = item.status || item.STATUS;
+                  const nama = item.nama || item.NAMA || item.Nama || '-';
+                  const role = item.role || item.ROLE_AKSES || item.ROLE || '-';
 
                   return (
                     <tr key={idTrx || index} className="hover:bg-gray-50 border-b border-gray-100 transition">
                       <td className="p-4 font-bold text-gray-700">{idTrx}</td>
-                      <td className="p-4 text-gray-600">{tgl.substring(0, 10)}</td>
+                      <td className="p-4 text-gray-600">{formatTimestamp(tgl)}</td>
                       <td className="p-4 font-bold text-blue-600">{jenis}</td>
+                      <td className="p-4 text-gray-700">{nama}</td>
+                      <td className="p-4 text-gray-700">{role}</td>
                       <td className="p-4 font-semibold text-navy-main">{idBrg}</td>
                       <td className="p-4 font-bold">{qty}</td>
                       <td className="p-4">
@@ -91,7 +133,7 @@ export default function LaporanRiwayat() {
                 })
               ) : (
                 <tr>
-                  <td colSpan="6" className="p-8 text-center text-gray-500 italic">
+                  <td colSpan="8" className="p-8 text-center text-gray-500 italic">
                     Belum ada riwayat transaksi di gudang.
                   </td>
                 </tr>

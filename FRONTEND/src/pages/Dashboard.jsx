@@ -5,16 +5,20 @@ import axios from 'axios';
 export default function Dashboard() {
   const [barang, setBarang] = useState([]);
   const [pendingTrans, setPendingTrans] = useState([]);
+  const [lowStockItems, setLowStockItems] = useState([]);
+  const [showRestockAlert, setShowRestockAlert] = useState(false);
   const navigate = useNavigate();
   const [pendingKeluarTrans, setPendingKeluarTrans] = useState([]);
   
   const user = JSON.parse(localStorage.getItem('user'));
+  const RESTOCK_THRESHOLD = 5;
 
   useEffect(() => {
     if (!user) {
       navigate('/login');
     } else {
       fetchDataBarang();
+      fetchLowStock();
       // SPV sama Admin berhak ngelihat dua antrean ini
       if (user.Role_Akses === 'Spv' || user.Role_Akses === 'Admin') {
         fetchPending();
@@ -31,12 +35,28 @@ export default function Dashboard() {
     } catch (error) { console.error("Gagal narik data barang:", error); }
   };
 
+  const fetchLowStock = async () => {
+    try {
+      const response = await axios.get('http://localhost:8000/api/alerts/low-stock', {
+        params: { threshold: RESTOCK_THRESHOLD }
+      });
+      const items = Array.isArray(response.data.data) ? response.data.data : [];
+      setLowStockItems(items);
+      setShowRestockAlert(items.length > 0);
+    } catch (error) {
+      console.error('Gagal narik data restock alert:', error);
+    }
+  };
+
   const handleDelete = async (idBarang) => {
     if (window.confirm("Yakin mau hapus barang ini?")) {
       try {
-        await axios.delete(`http://localhost:8000/api/barang/${idBarang}`);
+        await axios.delete(`http://localhost:8000/api/barang/${idBarang}`, {
+          params: { id_pegawai: user?.ID_Pegawai || user?.id_pegawai }
+        });
         alert("Barang berhasil dihapus!");
         fetchDataBarang(); 
+        fetchLowStock();
       } catch (error) {
         alert("Gagal menghapus barang.");
         console.error(error);
@@ -54,9 +74,12 @@ export default function Dashboard() {
 
   const handleApprove = async (idMasuk) => {
     try {
-      await axios.post(`http://localhost:8000/api/approve-masuk/${idMasuk}`);
+      await axios.post(`http://localhost:8000/api/approve-masuk/${idMasuk}`, null, {
+        params: { id_pegawai: user?.ID_Pegawai || user?.id_pegawai }
+      });
       alert("✅ Barang berhasil di-Approve! Stok bertambah otomatis.");
       fetchDataBarang(); 
+      fetchLowStock();
       fetchPending();    
     } catch (error) {
       // INI YANG DIGANTI BIAR ERROR ASLINYA KELUAR
@@ -66,7 +89,9 @@ export default function Dashboard() {
   const handleReject = async (idMasuk) => {
     if (window.confirm("Yakin mau NOLAK barang masuk ini?")) {
       try {
-        await axios.post(`http://localhost:8000/api/reject-masuk/${idMasuk}`);
+        await axios.post(`http://localhost:8000/api/reject-masuk/${idMasuk}`, null, {
+          params: { id_pegawai: user?.ID_Pegawai || user?.id_pegawai }
+        });
         alert("✅ Transaksi masuk berhasil ditolak!");
         fetchPending(); 
       } catch (error) {
@@ -85,9 +110,12 @@ export default function Dashboard() {
 
   const handleApproveKeluar = async (idKeluar) => {
     try {
-      await axios.post(`http://localhost:8000/api/approve-keluar/${idKeluar}`);
+      await axios.post(`http://localhost:8000/api/approve-keluar/${idKeluar}`, null, {
+        params: { id_pegawai: user?.ID_Pegawai || user?.id_pegawai }
+      });
       alert("Barang Keluar di-Approve! Stok otomatis terpotong.");
       fetchDataBarang();    // Refresh stok di tabel atas biar keliatan berkurangnya
+      fetchLowStock();
       fetchPendingKeluar(); // Refresh antrean keluar
     } catch (error) {
       alert(`🚨 GAGAL APPROVE: ${error.response?.data?.message || error.message}`);
@@ -97,7 +125,9 @@ export default function Dashboard() {
   const handleRejectKeluar = async (idKeluar) => {
     if (window.confirm("Yakin mau NOLAK barang keluar ini?")) {
       try {
-        await axios.post(`http://localhost:8000/api/reject-keluar/${idKeluar}`);
+        await axios.post(`http://localhost:8000/api/reject-keluar/${idKeluar}`, null, {
+          params: { id_pegawai: user?.ID_Pegawai || user?.id_pegawai }
+        });
         alert("Barang Keluar berhasil ditolak!");
         fetchPendingKeluar(); 
       } catch (error) {
@@ -157,6 +187,13 @@ export default function Dashboard() {
               Lihat Audit Trail
             </button>
 
+            {/* 📊 ANALYTICS */}
+            {(user.Role_Akses === 'Admin' || user.Role_Akses === 'Spv') && (
+              <button onClick={() => navigate('/analytics')} className="bg-indigo-600 text-white font-bold py-2 px-4 rounded hover:bg-indigo-700 transition shadow">
+                Dashboard Analytics
+              </button>
+            )}
+
             {/* 👷‍♂️ STAF & ADMIN ONLY: Boleh input transaksi */}
             {/* SPV NGGAK BAKAL NGE-LIHAT TOMBOL INI */}
             {(user.Role_Akses === 'Staf' || user.Role_Akses === 'Admin') && (
@@ -166,6 +203,40 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+
+        {showRestockAlert && (user.Role_Akses === 'Staf' || user.Role_Akses === 'Admin') && (
+          <div className="mb-6 border-l-4 border-red-500 bg-red-50 p-4 rounded-lg shadow">
+            <div className="flex justify-between items-start gap-4">
+              <div>
+                <h3 className="text-red-700 font-bold text-lg">🚨 Smart Restock Alert</h3>
+                <p className="text-sm text-red-600">
+                  Stok menipis (&lt;= {RESTOCK_THRESHOLD}). Segera lakukan transaksi Barang Masuk.
+                </p>
+                <ul className="mt-2 text-sm text-gray-700 list-disc list-inside">
+                  {lowStockItems.map((item) => (
+                    <li key={item.id_barang || item.ID_BARANG}>
+                      {item.nama_barang || item.NAMA_BARANG} (Stok: {item.stok || item.STOK})
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => navigate('/barang-masuk')}
+                  className="bg-yellow-accent text-navy-main font-bold px-4 py-2 rounded hover:bg-yellow-500"
+                >
+                  Buat Transaksi Masuk
+                </button>
+                <button
+                  onClick={() => setShowRestockAlert(false)}
+                  className="bg-gray-200 text-gray-700 font-bold px-4 py-2 rounded hover:bg-gray-300"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tabel Data */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
@@ -188,8 +259,8 @@ export default function Dashboard() {
                 const stok = Number(item.stok || item.STOK || 0);
                 const kMax = Number(item.kapasitas_max || item.KAPASITAS_MAX || 50);
                 
-                // 2. SISTEM menghitung 10% otomatis 
-                const batasMenipis = Math.floor(kMax * 0.10); 
+                // 2. SISTEM RESTOCK ALERT MIN 5 PCS
+                const batasMenipis = RESTOCK_THRESHOLD; 
 
                 // 2. LOGIKA 5 STATUS GUDANG 
                 let statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">✅ Aman</span>;
