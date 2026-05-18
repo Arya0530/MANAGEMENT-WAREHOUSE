@@ -9,18 +9,27 @@ use Illuminate\Http\Request;
 
 class ReportController extends Controller
 {
+    private function pdfResponse(string $view, array $data, string $filename)
+    {
+        $pdf = Pdf::loadView($view, $data)->setPaper('a4');
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, $filename, [
+            'Content-Type' => 'application/pdf',
+        ]);
+    }
+
     public function riwayatPdf(Request $request)
     {
         $role = $request->query('role');
         $pegawaiId = $request->query('id_pegawai');
         $rows = ReportService::riwayat($role, $pegawaiId);
 
-        $pdf = Pdf::loadView('reports.riwayat', [
+        return $this->pdfResponse('reports.riwayat', [
             'rows' => $rows,
             'generatedAt' => now(),
-        ]);
-
-        return $pdf->download('laporan_riwayat.pdf');
+        ], 'laporan_riwayat.pdf');
     }
 
     public function restockPdf(Request $request)
@@ -28,13 +37,11 @@ class ReportController extends Controller
         $threshold = (int) $request->query('threshold', 5);
         $items = ReportService::lowStock($threshold);
 
-        $pdf = Pdf::loadView('reports.restock', [
+        return $this->pdfResponse('reports.restock', [
             'items' => $items,
             'threshold' => $threshold,
             'generatedAt' => now(),
-        ]);
-
-        return $pdf->download('laporan_restock.pdf');
+        ], 'laporan_restock.pdf');
     }
 
     public function analyticsPdf(Request $request)
@@ -42,11 +49,9 @@ class ReportController extends Controller
         $days = (int) $request->query('days', 30);
         $summary = ReportService::analyticsSummary($days);
 
-        $pdf = Pdf::loadView('reports.analytics', [
+        return $this->pdfResponse('reports.analytics', [
             'summary' => $summary,
             'generatedAt' => now(),
-        ]);
-
-        return $pdf->download('laporan_analytics.pdf');
+        ], 'laporan_analytics.pdf');
     }
 }

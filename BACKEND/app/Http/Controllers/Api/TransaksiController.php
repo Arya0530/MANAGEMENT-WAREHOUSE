@@ -24,6 +24,8 @@ class TransaksiController extends Controller
         // 2. Bikin ID Transaksi Otomatis (Contoh: TRX-20260405-1234)
         $idMasukOtomatis = 'TRX-' . date('ymd') . '-' . rand(1000, 9999);
 
+        $qtyMasuk = 1;
+
         // 3. Simpan ke database Oracle
         $transaksi = BarangMasuk::create([
             'ID_Masuk'    => $idMasukOtomatis,
@@ -31,13 +33,13 @@ class TransaksiController extends Controller
             'ID_Supplier' => $request->ID_Supplier,
             'ID_Pegawai'  => $request->ID_Pegawai,
             'Tgl_Masuk'   => now(), // <-- INI TANGGALNYA, OTOMATIS DARI SERVER!
-            'Qty_Masuk'   => $request->Qty_Masuk,
+            'Qty_Masuk'   => $qtyMasuk,
             'Status'      => 'PENDING'
         ]);
 
         AuditLogger::record(
             $request->ID_Pegawai,
-            'Transaksi Masuk dibuat: ' . $idMasukOtomatis . ' (Barang ' . $request->ID_Barang . ', Qty ' . $request->Qty_Masuk . ')'
+            'Transaksi Masuk dibuat: ' . $idMasukOtomatis . ' (Barang ' . $request->ID_Barang . ', Qty ' . $qtyMasuk . ')'
         );
 
         return response()->json([
@@ -166,7 +168,7 @@ class TransaksiController extends Controller
             // Karena ini barang masuk, stoknya NAIK (increment)
             \Illuminate\Support\Facades\DB::table('BARANG')
                 ->where('ID_Barang', $trx->id_barang)
-                ->increment('Stok', $trx->qty_masuk);
+                ->increment('Stok', 1);
 
             \Illuminate\Support\Facades\DB::commit();
             $pegawaiId = $request->query('id_pegawai') ?: $request->input('ID_Pegawai');

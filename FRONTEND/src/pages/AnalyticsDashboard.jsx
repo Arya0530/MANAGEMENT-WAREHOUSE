@@ -8,6 +8,10 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
   BarChart,
   Bar,
 } from 'recharts';
@@ -19,16 +23,20 @@ const formatDate = (value) => {
   return text.substring(0, 10);
 };
 
-const downloadPdf = async (path, filename, params = {}) => {
-  const response = await api.get(path, { params, responseType: 'blob' });
-  const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
-  const link = document.createElement('a');
-  link.href = blobUrl;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.URL.revokeObjectURL(blobUrl);
+const buildReportUrl = (path, params = {}) => {
+  const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace(/\/$/, '');
+  const url = new URL(baseUrl + path);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      url.searchParams.set(key, value);
+    }
+  });
+  return url.toString();
+};
+
+const openPdf = (path, params = {}) => {
+  const url = buildReportUrl(path, params);
+  window.open(url, '_blank', 'noopener,noreferrer');
 };
 
 export default function AnalyticsDashboard() {
@@ -92,6 +100,37 @@ export default function AnalyticsDashboard() {
     }));
   }, [summary]);
 
+    const flowTotals = useMemo(() => {
+      if (!summary) {
+        return { masuk: 0, keluar: 0, total: 0 };
+      }
+
+      const sumTotals = (rows = []) =>
+        rows.reduce((sum, row) => sum + Number(row.total || row.TOTAL || 0), 0);
+
+      const masukTotal = sumTotals(summary.trend?.masuk || []);
+      const keluarTotal = sumTotals(summary.trend?.keluar || []);
+      const total = masukTotal + keluarTotal;
+
+      return { masuk: masukTotal, keluar: keluarTotal, total };
+    }, [summary]);
+
+    const flowPercentData = useMemo(() => {
+      const total = flowTotals.total;
+      if (!total) {
+        return [
+          { name: 'Masuk', value: 0 },
+          { name: 'Keluar', value: 0 },
+        ];
+      }
+      return [
+        { name: 'Masuk', value: (flowTotals.masuk / total) * 100 },
+        { name: 'Keluar', value: (flowTotals.keluar / total) * 100 },
+      ];
+    }, [flowTotals]);
+
+    const flowColors = ['#2563eb', '#f97316'];
+
   if (!user) return null;
 
   return (
@@ -104,13 +143,13 @@ export default function AnalyticsDashboard() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => downloadPdf('/reports/analytics/pdf', 'laporan_analytics.pdf', { days: 30 })}
+              onClick={() => openPdf('/reports/analytics/pdf', { days: 30 })}
               className="bg-yellow-accent text-navy-main px-4 py-2 rounded font-bold hover:bg-yellow-500"
             >
               Export PDF Analytics
             </button>
             <button
-              onClick={() => downloadPdf('/reports/restock/pdf', 'laporan_restock.pdf', { threshold: 5 })}
+              onClick={() => openPdf('/reports/restock/pdf', { threshold: 5 })}
               className="bg-white text-navy-main px-4 py-2 rounded font-bold hover:bg-gray-100"
             >
               Export PDF Restock
@@ -156,6 +195,33 @@ export default function AnalyticsDashboard() {
                     <Line type="monotone" dataKey="keluar" stroke="#f97316" strokeWidth={2} />
                   </LineChart>
                 </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+              <h2 className="text-lg font-bold text-navy-main mb-4">Persentase Barang Masuk vs Keluar</h2>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={flowPercentData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={45}
+                      outerRadius={80}
+                      paddingAngle={2}
+                    >
+                      {flowPercentData.map((entry, index) => (
+                        <Cell key={entry.name} fill={flowColors[index % flowColors.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => `${Number(value).toFixed(1)}%`} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-3 text-sm text-gray-600">
+                Total: {flowTotals.total} (Masuk {flowTotals.masuk}, Keluar {flowTotals.keluar})
               </div>
             </div>
 

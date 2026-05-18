@@ -13,26 +13,12 @@ export default function LaporanRiwayat() {
     return text.substring(0, 19);
   };
 
-  const downloadPdf = async () => {
-    try {
-      const response = await axios.get('http://localhost:8000/api/reports/riwayat/pdf', {
-        params: {
-          role: user.Role_Akses,
-          id_pegawai: user.ID_Pegawai || user.id_pegawai || 'P001'
-        },
-        responseType: 'blob'
-      });
-      const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = 'laporan_riwayat.pdf';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (err) {
-      alert('Gagal download PDF');
-    }
+  const downloadPdf = () => {
+    const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace(/\/$/, '');
+    const url = new URL(baseUrl + '/reports/riwayat/pdf');
+    url.searchParams.set('role', user.Role_Akses);
+    url.searchParams.set('id_pegawai', user.ID_Pegawai || user.id_pegawai || 'P001');
+    window.open(url.toString(), '_blank', 'noopener,noreferrer');
   };
 
   useEffect(() => {
