@@ -15,11 +15,13 @@ class AuthController extends Controller
             'Password' => 'required'
         ]);
 
-        // Cari pegawai (Laravel OCI8 bakal baca nama kolom dari form secara otomatis)
-        $user = Pegawai::where('username', $request->Username)->first();
+        // Cari pegawai (Oracle biasanya uppercase kolom, SQLite bisa lowercase)
+        $user = Pegawai::where('username', $request->Username)->first()
+            ?? Pegawai::where('Username', $request->Username)->first();
 
-        // PENTING: Panggil password dengan huruf kecil ($user->password) karena efek OCI8
-        if (!$user || $request->Password !== $user->password) {
+        $password = $user?->password ?? $user?->Password ?? null;
+
+        if (!$user || $request->Password !== $password) {
             return response()->json([
                 'success' => false,
                 'message' => 'Username atau Password salah!'
@@ -28,10 +30,10 @@ class AuthController extends Controller
 
         // Bungkus ulang datanya biar React lu tetep bisa baca user.Nama dan user.Role_Akses
         $userData = [
-            'ID_Pegawai' => $user->id_pegawai,
-            'Nama'       => $user->nama,
-            'Role_Akses' => $user->role_akses,
-            'Username'   => $user->username
+            'ID_Pegawai' => $user->id_pegawai ?? $user->ID_Pegawai,
+            'Nama'       => $user->nama ?? $user->Nama,
+            'Role_Akses' => $user->role_akses ?? $user->Role_Akses,
+            'Username'   => $user->username ?? $user->Username,
         ];
 
         return response()->json([

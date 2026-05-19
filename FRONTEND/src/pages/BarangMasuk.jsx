@@ -28,14 +28,20 @@ export default function BarangMasuk() {
     axios.get('http://localhost:8000/api/barang')
       .then(res => {
         setListBarang(res.data.data);
-        if(res.data.data.length > 0) setIdBarang(res.data.data[0].id_barang || res.data.data[0].ID_BARANG);
+        if (res.data.data.length > 0) {
+          const first = res.data.data[0];
+          setIdBarang(first.id_barang || first.ID_BARANG || first.ID_Barang || '');
+        }
       }).catch(err => alert("🚨 Gagal Load Data Barang: " + err.message));
 
     // Tarik Data Supplier
     axios.get('http://localhost:8000/api/supplier')
       .then(res => {
         setListSupplier(res.data.data);
-        if(res.data.data.length > 0) setIdSupplier(res.data.data[0].id_supplier || res.data.data[0].ID_SUPPLIER);
+        if (res.data.data.length > 0) {
+          const first = res.data.data[0];
+          setIdSupplier(first.id_supplier || first.ID_SUPPLIER || first.ID_Supplier || '');
+        }
       }).catch(err => console.error("Supplier kosong/error", err));
   }, [navigate, user.Role_Akses]);
 
@@ -107,11 +113,16 @@ export default function BarangMasuk() {
               {listBarang.length === 0 ? (
                 <option value="">⏳ Loading / Data Kosong...</option>
               ) : (
-                listBarang.map((brg) => (
-                  <option key={brg.id_barang || brg.ID_BARANG} value={brg.id_barang || brg.ID_BARANG}>
-                    {brg.nama_barang || brg.NAMA_BARANG} (Sisa Stok: {brg.stok || brg.STOK})
-                  </option>
-                ))
+                listBarang.map((brg) => {
+                  const id = brg.id_barang || brg.ID_BARANG || brg.ID_Barang;
+                  const nama = brg.nama_barang || brg.NAMA_BARANG || brg.Nama_Barang;
+                  const stok = brg.stok ?? brg.STOK ?? brg.Stok;
+                  return (
+                    <option key={id} value={id}>
+                      {nama} (Sisa Stok: {stok})
+                    </option>
+                  );
+                })
               )}
             </select>
           </div>
@@ -124,11 +135,15 @@ export default function BarangMasuk() {
                 {listSupplier.length === 0 ? (
                   <option value="">⏳ Loading Supplier...</option>
                 ) : (
-                  listSupplier.map((sup) => (
-                    <option key={sup.id_supplier || sup.ID_SUPPLIER} value={sup.id_supplier || sup.ID_SUPPLIER}>
-                      {sup.nama_supplier || sup.NAMA_SUPPLIER}
-                    </option>
-                  ))
+                  listSupplier.map((sup) => {
+                    const id = sup.id_supplier || sup.ID_SUPPLIER || sup.ID_Supplier;
+                    const nama = sup.nama_supplier || sup.NAMA_SUPPLIER || sup.Nama_Supplier;
+                    return (
+                      <option key={id} value={id}>
+                        {nama}
+                      </option>
+                    );
+                  })
                 )}
               </select>
             </div>

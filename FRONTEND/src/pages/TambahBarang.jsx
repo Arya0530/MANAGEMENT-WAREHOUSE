@@ -24,8 +24,12 @@ export default function TambahBarang() {
     }
     axios.get('http://localhost:8000/api/kategori')
       .then(res => {
-        setListKategori(res.data.data);
-        if(res.data.data.length > 0) setIdKategori(res.data.data[0].id_kategori);
+        const data = res.data.data || [];
+        setListKategori(data);
+        const first = data[0];
+        if (first) {
+          setIdKategori(first.id_kategori || first.ID_Kategori || '');
+        }
       })
       .catch(err => console.error("Gagal narik kategori", err));
   }, []);
@@ -78,11 +82,15 @@ export default function TambahBarang() {
                     value={idKategori}
                     onChange={(e) => setIdKategori(e.target.value)}
                 >
-                    {listKategori.map((k) => (
-                    <option key={k.id_kategori} value={k.id_kategori}>
-                        {k.nama_kategori} ({k.id_kategori})
-                    </option>
-                    ))}
+                    {listKategori.map((k) => {
+                      const id = k.id_kategori || k.ID_Kategori;
+                      const name = k.nama_kategori || k.Nama_Kategori;
+                      return (
+                        <option key={id} value={id}>
+                          {name} ({id})
+                        </option>
+                      );
+                    })}
                 </select>
             </div>
             <div>

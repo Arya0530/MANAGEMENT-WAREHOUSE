@@ -25,15 +25,15 @@ export default function EditBarang() {
       // Narik data barang yang mau diedit
       axios.get('http://localhost:8000/api/barang')
         .then(res => {
-          const barangLama = res.data.data.find(b => (b.id_barang || b.ID_BARANG) === id);
+          const barangLama = res.data.data.find(b => (b.id_barang || b.ID_BARANG || b.ID_Barang) === id);
           if (barangLama) {
-            setNamaBarang(barangLama.nama_barang || barangLama.NAMA_BARANG);
-            setStok(barangLama.stok || barangLama.STOK);
-            setSatuan(barangLama.satuan || barangLama.SATUAN);
+            setNamaBarang(barangLama.nama_barang || barangLama.NAMA_BARANG || barangLama.Nama_Barang);
+            setStok(barangLama.stok || barangLama.STOK || barangLama.Stok);
+            setSatuan(barangLama.satuan || barangLama.SATUAN || barangLama.Satuan);
             
             // TAMBAHAN: Nangkep data batas dari Oracle (Handle huruf besar/kecil)
-            setBatasMinimum(barangLama.batas_minimum || barangLama.BATAS_MINIMUM || 5);
-            setKapasitasMax(barangLama.kapasitas_max || barangLama.KAPASITAS_MAX || 50);
+            setBatasMinimum(barangLama.batas_minimum || barangLama.BATAS_MINIMUM || barangLama.Batas_Minimum || 5);
+            setKapasitasMax(barangLama.kapasitas_max || barangLama.KAPASITAS_MAX || barangLama.Kapasitas_Max || 50);
           }
         })
         .catch(err => console.error(err));

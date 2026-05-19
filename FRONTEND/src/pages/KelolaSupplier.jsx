@@ -99,19 +99,26 @@ export default function KelolaSupplier() {
               </tr>
             </thead>
             <tbody>
-              {suppliers.map((sup) => (
-                <tr key={sup.id_supplier || sup.ID_SUPPLIER} className="hover:bg-gray-50 border-b">
-                  <td className="p-4 font-bold">{sup.id_supplier || sup.ID_SUPPLIER}</td>
-                  <td className="p-4">{sup.nama_supplier || sup.NAMA_SUPPLIER}</td>
-                  <td className="p-4">{sup.kontak || sup.KONTAK}</td>
-                  <td className="p-4">{sup.alamat || sup.ALAMAT}</td>
-                  <td className="p-4 text-center">
-                    <button onClick={() => handleDelete(sup.id_supplier || sup.ID_SUPPLIER)} className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded shadow text-sm">
-                      Hapus
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {suppliers.map((sup) => {
+                const id = sup.id_supplier || sup.ID_SUPPLIER || sup.ID_Supplier;
+                const nama = sup.nama_supplier || sup.NAMA_SUPPLIER || sup.Nama_Supplier;
+                const kontak = sup.kontak || sup.KONTAK || sup.Kontak;
+                const alamat = sup.alamat || sup.ALAMAT || sup.Alamat;
+
+                return (
+                  <tr key={id} className="hover:bg-gray-50 border-b">
+                    <td className="p-4 font-bold">{id}</td>
+                    <td className="p-4">{nama}</td>
+                    <td className="p-4">{kontak}</td>
+                    <td className="p-4">{alamat}</td>
+                    <td className="p-4 text-center">
+                      <button onClick={() => handleDelete(id)} className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded shadow text-sm">
+                        Hapus
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

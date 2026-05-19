@@ -255,9 +255,11 @@ export default function Dashboard() {
           <tbody>
             {barang.length > 0 ? (
               barang.map((item) => {
-                // 1. AMBIL STOK & MAX (Batas Min nggak usah ditarik dari DB lagi)
-                const stok = Number(item.stok || item.STOK || 0);
-                const kMax = Number(item.kapasitas_max || item.KAPASITAS_MAX || 50);
+                const id = item.id_barang || item.ID_BARANG || item.ID_Barang;
+                const nama = item.nama_barang || item.NAMA_BARANG || item.Nama_Barang;
+                const stok = Number(item.stok ?? item.STOK ?? item.Stok ?? 0);
+                const kMax = Number(item.kapasitas_max ?? item.KAPASITAS_MAX ?? item.Kapasitas_Max ?? 50);
+                const satuan = item.satuan || item.SATUAN || item.Satuan;
                 
                 // 2. SISTEM RESTOCK ALERT MIN 5 PCS
                 const batasMenipis = RESTOCK_THRESHOLD; 
@@ -281,9 +283,9 @@ export default function Dashboard() {
 
           
                 return (
-                  <tr key={item.id_barang || item.ID_BARANG} className="hover:bg-gray-50 border-b transition">
-                    <td className="p-4">{item.id_barang || item.ID_BARANG}</td>
-                    <td className="p-4 font-bold">{item.nama_barang || item.NAMA_BARANG}</td>
+                  <tr key={id} className="hover:bg-gray-50 border-b transition">
+                    <td className="p-4">{id}</td>
+                    <td className="p-4 font-bold">{nama}</td>
                     
                     {/* Tampilkan Stok vs Kapasitas Max */}
                     <td className="p-4 font-semibold">{stok} / {kMax}</td>
@@ -291,20 +293,20 @@ export default function Dashboard() {
                     {/*  variabel statusLabel*/}
                     <td className="p-4">{statusLabel}</td>
                     
-                    <td className="p-4">{item.satuan || item.SATUAN}</td>
+                    <td className="p-4">{satuan}</td>
 
           <td className="p-4">
             {user.Role_Akses === 'Admin' && (
               <div className="flex gap-2">
                 <button 
-                  onClick={() => navigate(`/edit-barang/${item.id_barang || item.ID_BARANG}`)}
+                  onClick={() => navigate(`/edit-barang/${id}`)}
                   className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded shadow text-sm"
                 >
                   Edit
                 </button>
 
                 <button 
-                  onClick={() => handleDelete(item.id_barang || item.ID_BARANG)}
+                  onClick={() => handleDelete(id)}
                   className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded shadow text-sm"
                 >
                   Hapus
@@ -345,48 +347,56 @@ export default function Dashboard() {
                 </thead>
                 <tbody>
                   {pendingTrans.length > 0 ? (
-                    pendingTrans.map((trx) => (
-                      <tr key={trx.id_masuk} className="hover:bg-gray-50 border-b transition">
-                        {/* 1. ID Transaksi */}
-                        <td className="p-4 font-bold">{trx.id_masuk}</td>
+                    pendingTrans.map((trx) => {
+                      const idMasuk = trx.id_masuk || trx.ID_MASUK || trx.ID_Masuk;
+                      const tglMasuk = trx.tgl_masuk || trx.TGL_MASUK || trx.Tgl_Masuk || '';
+                      const idBarang = trx.id_barang || trx.ID_BARANG || trx.ID_Barang;
+                      const qtyMasuk = trx.qty_masuk || trx.QTY_MASUK || trx.Qty_Masuk;
+                      const status = trx.status || trx.STATUS || trx.Status;
+
+                      return (
+                        <tr key={idMasuk} className="hover:bg-gray-50 border-b transition">
+                          {/* 1. ID Transaksi */}
+                          <td className="p-4 font-bold">{idMasuk}</td>
+                          
+                          {/* 2. Tanggal (Di-substring biar jamnya ilang, sisa 10 karakter depan aja) */}
+                          <td className="p-4 text-gray-600">
+                            {tglMasuk.substring(0, 10)}
+                          </td>
+                          
+                          {/* 3. ID Barang */}
+                          <td className="p-4">{idBarang}</td>
+                          
+                          {/* 4. Qty */}
+                          <td className="p-4">{qtyMasuk}</td>
+                          
+                          {/* 5. Status */}
+                          <td className="p-4">
+                            <span className="px-3 py-1 rounded-full text-sm font-bold bg-orange-100 text-orange-700">
+                              {status}
+                            </span>
+                          </td>
                         
-                        {/* 2. Tanggal (Di-substring biar jamnya ilang, sisa 10 karakter depan aja) */}
-                        <td className="p-4 text-gray-600">
-                          {(trx.tgl_masuk || trx.TGL_MASUK || '').substring(0, 10)}
-                        </td>
-                        
-                        {/* 3. ID Barang */}
-                        <td className="p-4">{trx.id_barang}</td>
-                        
-                        {/* 4. Qty */}
-                        <td className="p-4">{trx.qty_masuk}</td>
-                        
-                        {/* 5. Status */}
-                        <td className="p-4">
-                          <span className="px-3 py-1 rounded-full text-sm font-bold bg-orange-100 text-orange-700">
-                            {trx.status}
-                          </span>
-                        </td>
-                      
-                        {/* 6. Aksi (Tombol Approve & Reject) */}
-                        <td className="p-4">
-                          <div className="flex gap-2">
-                            <button 
-                              onClick={() => handleApprove(trx.id_masuk)}
-                              className="bg-green-600 hover:bg-green-800 text-white font-bold py-1 px-3 rounded shadow"
-                            >
-                              Approve
-                            </button>
-                            <button 
-                              onClick={() => handleReject(trx.id_masuk)}
-                              className="bg-gray-700 hover:bg-gray-900 text-white font-bold py-1 px-3 rounded shadow"
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                          {/* 6. Aksi (Tombol Approve & Reject) */}
+                          <td className="p-4">
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => handleApprove(idMasuk)}
+                                className="bg-green-600 hover:bg-green-800 text-white font-bold py-1 px-3 rounded shadow"
+                              >
+                                Approve
+                              </button>
+                              <button 
+                                onClick={() => handleReject(idMasuk)}
+                                className="bg-gray-700 hover:bg-gray-900 text-white font-bold py-1 px-3 rounded shadow"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td colSpan="6" className="p-8 text-center text-gray-500 italic">
@@ -420,33 +430,40 @@ export default function Dashboard() {
 
       <tbody>
         {pendingKeluarTrans.length > 0 ? (
-          pendingKeluarTrans.map((trx) => (
-            <tr key={trx.id_keluar} className="hover:bg-orange-50 border-b border-orange-100 transition">
+          pendingKeluarTrans.map((trx) => {
+            const idKeluar = trx.id_keluar || trx.ID_KELUAR || trx.ID_Keluar;
+            const tglKeluar = trx.tgl_keluar || trx.TGL_KELUAR || trx.Tgl_Keluar || '';
+            const idBarang = trx.id_barang || trx.ID_BARANG || trx.ID_Barang;
+            const qtyKeluar = trx.qty_keluar || trx.QTY_KELUAR || trx.Qty_Keluar;
+            const status = trx.status || trx.STATUS || trx.Status;
+
+            return (
+            <tr key={idKeluar} className="hover:bg-orange-50 border-b border-orange-100 transition">
               
-              <td className="p-4 font-bold text-orange-700">{trx.id_keluar}</td>
+              <td className="p-4 font-bold text-orange-700">{idKeluar}</td>
               <td className="p-4 text-gray-600">
-                {(trx.tgl_keluar || trx.TGL_KELUAR || '').substring(0, 10)}
+                {tglKeluar.substring(0, 10)}
               </td>
-              <td className="p-4 font-semibold">{trx.id_barang}</td>
-              <td className="p-4 font-bold">{trx.qty_keluar}</td>
+              <td className="p-4 font-semibold">{idBarang}</td>
+              <td className="p-4 font-bold">{qtyKeluar}</td>
 
               <td className="p-4">
                 <span className="px-3 py-1 rounded-full text-sm font-bold bg-orange-100 text-orange-700">
-                  {trx.status}
+                  {status}
                 </span>
               </td>
 
               <td className="p-4">
                 <div className="flex gap-2">
                   <button 
-                    onClick={() => handleApproveKeluar(trx.id_keluar)} 
+                    onClick={() => handleApproveKeluar(idKeluar)} 
                     className="bg-green-600 hover:bg-green-800 text-white font-bold py-1 px-3 rounded shadow"
                   >
                     Approve
                   </button>
 
                   <button 
-                    onClick={() => handleRejectKeluar(trx.id_keluar)} 
+                    onClick={() => handleRejectKeluar(idKeluar)} 
                     className="bg-gray-700 hover:bg-gray-900 text-white font-bold py-1 px-3 rounded shadow"
                   >
                     Reject
@@ -455,7 +472,8 @@ export default function Dashboard() {
               </td>
 
             </tr>
-          ))
+            );
+          })
         ) : (
           <tr>
             <td colSpan="6" className="p-8 text-center text-gray-500 italic">
