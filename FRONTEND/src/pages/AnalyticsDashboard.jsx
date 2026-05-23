@@ -189,13 +189,7 @@ export default function AnalyticsDashboard() {
               onClick={() => openPdf('/reports/analytics/pdf', { days: 30 })}
               className="bg-yellow-accent text-navy-main px-4 py-2 rounded font-bold hover:bg-yellow-500"
             >
-              Export PDF Analytics
-            </button>
-            <button
-              onClick={() => openPdf('/reports/restock/pdf', { threshold: 5 })}
-              className="bg-white text-navy-main px-4 py-2 rounded font-bold hover:bg-gray-100"
-            >
-              Export PDF Restock
+              Export PDF
             </button>
             <button
               onClick={() => navigate('/dashboard')}

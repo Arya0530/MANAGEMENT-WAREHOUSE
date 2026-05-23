@@ -57,6 +57,5 @@ Route::post('/reject-keluar/{id}', [TransaksiController::class, 'rejectKeluar'])
 
 // REPORTS (PDF)
 Route::get('/reports/riwayat/pdf', [ReportController::class, 'riwayatPdf']);
-Route::get('/reports/restock/pdf', [ReportController::class, 'restockPdf']);
 Route::get('/reports/analytics/pdf', [ReportController::class, 'analyticsPdf']);
 

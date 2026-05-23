@@ -119,5 +119,34 @@
             </tbody>
         </table>
     </div>
+    <div class="section">
+        <strong>Barang Menipis (&lt;= 10% Kapasitas)</strong>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID Barang</th>
+                    <th>Nama Barang</th>
+                    <th class="right">Stok</th>
+                    <th>Satuan</th>
+                    <th class="right">Kapasitas</th>
+                </tr>
+            </thead>
+            <tbody>
+            @forelse ($summary['low_stock'] ?? [] as $item)
+                <tr>
+                    <td>{{ $item->id_barang ?? '-' }}</td>
+                    <td>{{ $item->nama_barang ?? '-' }}</td>
+                    <td class="right">{{ $item->stok ?? '-' }}</td>
+                    <td>{{ $item->satuan ?? '-' }}</td>
+                    <td class="right">{{ $item->kapasitas_max ?? '-' }}</td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="5">Tidak ada barang menipis.</td>
+                </tr>
+            @endforelse
+            </tbody>
+        </table>
+    </div>
 </body>
 </html>

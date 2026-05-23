@@ -64,10 +64,12 @@ class ReportService
 
         $masukQuery = DB::table('BARANG_MASUK as bm')
             ->join('PEGAWAI as p', 'bm.ID_Pegawai', '=', 'p.ID_Pegawai')
+            ->join('BARANG as b', 'bm.ID_Barang', '=', 'b.ID_Barang')
             ->select(
                 'bm.ID_Masuk as id',
                 'bm.Tgl_Masuk as tanggal',
                 'bm.ID_Barang as id_barang',
+                'b.Nama_Barang as nama_barang',
                 'bm.Qty_Masuk as qty',
                 'bm.Status as status',
                 'bm.ID_Pegawai as pembuat',
@@ -78,10 +80,12 @@ class ReportService
 
         $keluarQuery = DB::table('BARANG_KELUAR as bk')
             ->join('PEGAWAI as p', 'bk.ID_Pegawai', '=', 'p.ID_Pegawai')
+            ->join('BARANG as b', 'bk.ID_Barang', '=', 'b.ID_Barang')
             ->select(
                 'bk.ID_Keluar as id',
                 'bk.Tgl_Keluar as tanggal',
                 'bk.ID_Barang as id_barang',
+                'b.Nama_Barang as nama_barang',
                 'bk.Qty_Keluar as qty',
                 'bk.Status as status',
                 'bk.ID_Pegawai as pembuat',

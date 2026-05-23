@@ -114,9 +114,10 @@ public function index()
             }
 
             $pegawaiId = $request->input('ID_Pegawai') ?: $request->input('id_pegawai');
+            $namaBarang = $request->input('Nama_Barang');
             AuditLogger::record(
                 $pegawaiId,
-                'Edit Barang: ' . $id
+                'Edit Barang: ' . $id . ' - ' . $namaBarang
             );
 
             return response()->json(['success' => true, 'message' => 'Berhasil diupdate paksa!'], 200);
@@ -130,7 +131,10 @@ public function index()
     public function destroy(Request $request, $id)
     {
         try {
-            // Niatnya ngehapus barang
+            // Fetch name before deleting for audit log
+            $barang = Barang::where('id_barang', $id)->first();
+            $namaBarang = $barang ? ($barang->Nama_Barang ?? $barang->nama_barang ?? $barang->NAMA_BARANG ?? 'Unknown') : 'Unknown';
+
             $affected = Barang::where('id_barang', $id)->delete();
 
             if ($affected === 0) {
@@ -138,7 +142,7 @@ public function index()
             }
 
             $pegawaiId = $request->query('id_pegawai') ?: $request->input('ID_Pegawai');
-            AuditLogger::record($pegawaiId, 'Hapus Barang: ' . $id);
+            AuditLogger::record($pegawaiId, 'Hapus Barang: ' . $id . ' - ' . $namaBarang);
 
             return response()->json(['success' => true, 'message' => 'Barang berhasil dihapus!'], 200);
 

@@ -258,15 +258,13 @@ export default function Dashboard() {
                 // Issue #3: Batas menipis sekarang 10% dari kapasitas max
                 const batasMenipis = Math.floor(kMax * 0.1);
 
-                // LOGIKA 5 STATUS GUDANG (Issue #3: pakai 10% kapasitas)
+                // LOGIKA STATUS GUDANG (tanpa "Stok Habis")
                 let statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">✅ Aman</span>;
                 
                 if (stok > kMax) {
                   statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700">🛑 Overload</span>;
                 } else if (stok === kMax) {
                   statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">⚠️ Maksimum</span>;
-                } else if (stok === 0) {
-                  statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-black text-white">❌ Stok Habis</span>;
                 } else if (stok <= batasMenipis) {
                   statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">🚨 Menipis (&le;10%)</span>;
                 }

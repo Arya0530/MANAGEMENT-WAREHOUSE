@@ -43,24 +43,6 @@ class ReportController extends Controller
         }
     }
 
-    public function restockPdf(Request $request)
-    {
-        try {
-            $threshold = (int) $request->query('threshold', 5);
-            $items = ReportService::lowStock($threshold);
-
-            return $this->pdfResponse('reports.restock', [
-                'items' => $items,
-                'threshold' => '10% Kapasitas',
-                'generatedAt' => now(),
-            ], 'laporan_restock.pdf');
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal generate PDF Restock: ' . $e->getMessage(),
-            ], 500);
-        }
-    }
 
     public function analyticsPdf(Request $request)
     {

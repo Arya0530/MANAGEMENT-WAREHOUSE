@@ -37,9 +37,12 @@ class TransaksiController extends Controller
             'Status'      => 'PENDING'
         ]);
 
+        $barangInfo = \Illuminate\Support\Facades\DB::table('BARANG')->where('ID_Barang', $request->ID_Barang)->first();
+        $namaBarang = $barangInfo ? ($barangInfo->Nama_Barang ?? $barangInfo->nama_barang ?? $barangInfo->NAMA_BARANG) : 'Unknown';
+
         AuditLogger::record(
             $request->ID_Pegawai,
-            'Transaksi Masuk dibuat: ' . $idMasukOtomatis . ' (Barang ' . $request->ID_Barang . ', Qty ' . $qtyMasuk . ')'
+            'Transaksi Masuk dibuat: ' . $idMasukOtomatis . ' (Barang ' . $request->ID_Barang . ' - ' . $namaBarang . ', Qty ' . $qtyMasuk . ')'
         );
 
         return response()->json([
@@ -79,8 +82,10 @@ class TransaksiController extends Controller
                 ->decrement('Stok', $trx->qty_keluar);
 
             \Illuminate\Support\Facades\DB::commit();
+            $barangInfo = \Illuminate\Support\Facades\DB::table('BARANG')->where('ID_Barang', $trx->id_barang)->first();
+            $namaBarang = $barangInfo ? ($barangInfo->Nama_Barang ?? $barangInfo->nama_barang ?? $barangInfo->NAMA_BARANG) : 'Unknown';
             $pegawaiId = $request->query('id_pegawai') ?: $request->input('ID_Pegawai');
-            AuditLogger::record($pegawaiId, 'Approve Barang Keluar: ' . $id);
+            AuditLogger::record($pegawaiId, 'Approve Barang Keluar: ' . $id . ' - ' . $namaBarang);
             return response()->json(['success' => true, 'message' => 'Barang Keluar di-Approve & Stok terpotong!']);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\DB::rollBack();
@@ -92,8 +97,11 @@ class TransaksiController extends Controller
     public function rejectKeluar(Request $request, $id)
     {
         \Illuminate\Support\Facades\DB::table('BARANG_KELUAR')->where('id_keluar', $id)->update(['status' => 'REJECTED']);
+        $trx = \Illuminate\Support\Facades\DB::table('BARANG_KELUAR')->where('id_keluar', $id)->first();
+        $barangInfo = $trx ? \Illuminate\Support\Facades\DB::table('BARANG')->where('ID_Barang', $trx->id_barang)->first() : null;
+        $namaBarang = $barangInfo ? ($barangInfo->Nama_Barang ?? $barangInfo->nama_barang ?? $barangInfo->NAMA_BARANG) : 'Unknown';
         $pegawaiId = $request->query('id_pegawai') ?: $request->input('ID_Pegawai');
-        AuditLogger::record($pegawaiId, 'Reject Barang Keluar: ' . $id);
+        AuditLogger::record($pegawaiId, 'Reject Barang Keluar: ' . $id . ' - ' . $namaBarang);
         return response()->json(['success' => true, 'message' => 'Transaksi Keluar DITOLAK!']);
     }
 
@@ -160,9 +168,10 @@ class TransaksiController extends Controller
                 'Status'     => 'PENDING' // <-- Ditahan SPV
             ]);
 
+            $namaBarang = $barang->Nama_Barang ?? $barang->nama_barang ?? $barang->NAMA_BARANG ?? 'Unknown';
             AuditLogger::record(
                 $request->ID_Pegawai,
-                'Transaksi Keluar dibuat: ' . $idKeluarOtomatis . ' (Barang ' . $request->ID_Barang . ', Qty ' . $qtyKeluar . ')'
+                'Transaksi Keluar dibuat: ' . $idKeluarOtomatis . ' (Barang ' . $request->ID_Barang . ' - ' . $namaBarang . ', Qty ' . $qtyKeluar . ')'
             );
 
             return response()->json(['success' => true, 'message' => 'Permintaan Barang Keluar dicatat! Menunggu persetujuan SPV.'], 200);
@@ -204,8 +213,10 @@ class TransaksiController extends Controller
                 ->increment('Stok', $qtyMasuk);
 
             \Illuminate\Support\Facades\DB::commit();
+            $barangInfo = \Illuminate\Support\Facades\DB::table('BARANG')->where('ID_Barang', $trx->id_barang)->first();
+            $namaBarang = $barangInfo ? ($barangInfo->Nama_Barang ?? $barangInfo->nama_barang ?? $barangInfo->NAMA_BARANG) : 'Unknown';
             $pegawaiId = $request->query('id_pegawai') ?: $request->input('ID_Pegawai');
-            AuditLogger::record($pegawaiId, 'Approve Barang Masuk: ' . $id);
+            AuditLogger::record($pegawaiId, 'Approve Barang Masuk: ' . $id . ' - ' . $namaBarang);
             return response()->json(['success' => true, 'message' => 'Barang Masuk di-Approve & Stok bertambah!']);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\DB::rollBack();
@@ -217,8 +228,11 @@ class TransaksiController extends Controller
     public function rejectMasuk(Request $request, $id)
     {
         \Illuminate\Support\Facades\DB::table('BARANG_MASUK')->where('id_masuk', $id)->update(['status' => 'REJECTED']);
+        $trx = \Illuminate\Support\Facades\DB::table('BARANG_MASUK')->where('id_masuk', $id)->first();
+        $barangInfo = $trx ? \Illuminate\Support\Facades\DB::table('BARANG')->where('ID_Barang', $trx->id_barang)->first() : null;
+        $namaBarang = $barangInfo ? ($barangInfo->Nama_Barang ?? $barangInfo->nama_barang ?? $barangInfo->NAMA_BARANG) : 'Unknown';
         $pegawaiId = $request->query('id_pegawai') ?: $request->input('ID_Pegawai');
-        AuditLogger::record($pegawaiId, 'Reject Barang Masuk: ' . $id);
+        AuditLogger::record($pegawaiId, 'Reject Barang Masuk: ' . $id . ' - ' . $namaBarang);
         return response()->json(['success' => true, 'message' => 'Transaksi Masuk DITOLAK!']);
     }
 }
