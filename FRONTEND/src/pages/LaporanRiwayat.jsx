@@ -15,6 +15,13 @@ export default function LaporanRiwayat() {
     return text.substring(0, 19);
   };
 
+  const downloadPdf = () => {
+    const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace(/\/$/, '');
+    const url = new URL(baseUrl + '/reports/riwayat/pdf');
+    url.searchParams.set('role', user.Role_Akses);
+    url.searchParams.set('id_pegawai', user.ID_Pegawai || user.id_pegawai || 'P001');
+    window.open(url.toString(), '_blank', 'noopener,noreferrer');
+  };
 
   useEffect(() => {
     // Kalau belum login, tendang ke halaman login
@@ -64,6 +71,12 @@ export default function LaporanRiwayat() {
         <div className="bg-gray-800 p-6 text-white flex justify-between items-center">
           <h2 className="text-2xl font-bold">Audit Trail (Riwayat Transaksi)</h2>
           <div className="flex gap-2">
+            <button 
+              onClick={downloadPdf} 
+              className="bg-white text-gray-800 px-4 py-2 rounded font-bold hover:bg-gray-100 transition shadow"
+            >
+              Export PDF
+            </button>
             <button 
               onClick={() => navigate('/dashboard')} 
               className="bg-yellow-accent text-navy-main px-4 py-2 rounded font-bold hover:bg-yellow-500 transition shadow"

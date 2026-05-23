@@ -143,36 +143,36 @@ export default function AnalyticsDashboard() {
     }));
   }, [summary]);
 
-    const flowTotals = useMemo(() => {
-      if (!summary) {
-        return { masuk: 0, keluar: 0, total: 0 };
-      }
+  const flowTotals = useMemo(() => {
+    if (!summary) {
+      return { masuk: 0, keluar: 0, total: 0 };
+    }
 
-      const sumTotals = (rows = []) =>
-        rows.reduce((sum, row) => sum + Number(row.total || row.TOTAL || 0), 0);
+    const sumTotals = (rows = []) =>
+      rows.reduce((sum, row) => sum + Number(row.total || row.TOTAL || 0), 0);
 
-      const masukTotal = sumTotals(summary.trend?.masuk || []);
-      const keluarTotal = sumTotals(summary.trend?.keluar || []);
-      const total = masukTotal + keluarTotal;
+    const masukTotal = sumTotals(summary.trend?.masuk || []);
+    const keluarTotal = sumTotals(summary.trend?.keluar || []);
+    const total = masukTotal + keluarTotal;
 
-      return { masuk: masukTotal, keluar: keluarTotal, total };
-    }, [summary]);
+    return { masuk: masukTotal, keluar: keluarTotal, total };
+  }, [summary]);
 
-    const flowPercentData = useMemo(() => {
-      const total = flowTotals.total;
-      if (!total) {
-        return [
-          { name: 'Masuk', value: 0 },
-          { name: 'Keluar', value: 0 },
-        ];
-      }
+  const flowPercentData = useMemo(() => {
+    const total = flowTotals.total;
+    if (!total) {
       return [
-        { name: 'Masuk', value: (flowTotals.masuk / total) * 100 },
-        { name: 'Keluar', value: (flowTotals.keluar / total) * 100 },
+        { name: 'Masuk', value: 0 },
+        { name: 'Keluar', value: 0 },
       ];
-    }, [flowTotals]);
+    }
+    return [
+      { name: 'Masuk', value: (flowTotals.masuk / total) * 100 },
+      { name: 'Keluar', value: (flowTotals.keluar / total) * 100 },
+    ];
+  }, [flowTotals]);
 
-    const flowColors = ['#2563eb', '#f97316'];
+  const flowColors = ['#2563eb', '#f97316'];
 
   if (!user) return null;
 
