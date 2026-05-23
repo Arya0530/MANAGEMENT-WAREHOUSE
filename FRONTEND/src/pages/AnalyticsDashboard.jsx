@@ -39,6 +39,12 @@ const openPdf = (path, params = {}) => {
   window.open(url, '_blank', 'noopener,noreferrer');
 };
 
+// Warna-warna buat line chart per barang
+const ITEM_COLORS = [
+  '#2563eb', '#f97316', '#10b981', '#ef4444', '#8b5cf6',
+  '#06b6d4', '#ec4899', '#f59e0b', '#6366f1', '#14b8a6',
+];
+
 export default function AnalyticsDashboard() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -67,36 +73,73 @@ export default function AnalyticsDashboard() {
       .finally(() => setLoading(false));
   }, [navigate, user]);
 
-  const trendData = useMemo(() => {
-    if (!summary) return [];
+  /**
+   * Issue #1: Trend data sekarang per barang per tanggal.
+   * Format: [{ tanggal: '2026-05-01', 'Barang A': 10, 'Barang B': 5, ... }]
+   * Ini supaya setiap barang punya line sendiri di chart.
+   */
+  const { trendChartData: masukChartData, itemNames: masukItemNames } = useMemo(() => {
+    if (!summary) return { trendChartData: [], itemNames: [] };
 
     const masuk = summary.trend?.masuk || [];
-    const keluar = summary.trend?.keluar || [];
-    const map = new Map();
+    const dateMap = new Map();
+    const itemSet = new Set();
 
     masuk.forEach((row) => {
       const key = formatDate(row.tanggal || row.TANGGAL);
-      const total = row.total || row.TOTAL || 0;
-      map.set(key, { tanggal: key, masuk: Number(total), keluar: 0 });
+      const namaBarang = row.nama_barang || row.NAMA_BARANG || row.id_barang || 'Unknown';
+      const total = Number(row.total || row.TOTAL || 0);
+
+      itemSet.add(namaBarang);
+
+      if (!dateMap.has(key)) {
+        dateMap.set(key, { tanggal: key });
+      }
+      const entry = dateMap.get(key);
+      entry[namaBarang] = (entry[namaBarang] || 0) + total;
     });
+
+    const trendChartData = Array.from(dateMap.values()).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+    const itemNames = Array.from(itemSet);
+    return { trendChartData, itemNames };
+  }, [summary]);
+
+  const { trendChartData: keluarChartData, itemNames: keluarItemNames } = useMemo(() => {
+    if (!summary) return { trendChartData: [], itemNames: [] };
+
+    const keluar = summary.trend?.keluar || [];
+    const dateMap = new Map();
+    const itemSet = new Set();
 
     keluar.forEach((row) => {
       const key = formatDate(row.tanggal || row.TANGGAL);
-      const total = row.total || row.TOTAL || 0;
-      const current = map.get(key) || { tanggal: key, masuk: 0, keluar: 0 };
-      current.keluar = Number(total);
-      map.set(key, current);
+      const namaBarang = row.nama_barang || row.NAMA_BARANG || row.id_barang || 'Unknown';
+      const total = Number(row.total || row.TOTAL || 0);
+
+      itemSet.add(namaBarang);
+
+      if (!dateMap.has(key)) {
+        dateMap.set(key, { tanggal: key });
+      }
+      const entry = dateMap.get(key);
+      entry[namaBarang] = (entry[namaBarang] || 0) + total;
     });
 
-    return Array.from(map.values()).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+    const trendChartData = Array.from(dateMap.values()).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+    const itemNames = Array.from(itemSet);
+    return { trendChartData, itemNames };
   }, [summary]);
 
+  /**
+   * Issue #2: Fast-moving sekarang punya total_masuk DAN total_keluar
+   */
   const fastMovingData = useMemo(() => {
     if (!summary) return [];
     return (summary.fast_moving || []).map((item) => ({
       id_barang: item.id_barang || item.ID_BARANG,
       nama_barang: item.nama_barang || item.NAMA_BARANG,
-      total_keluar: Number(item.total_keluar || item.TOTAL_KELUAR || 0)
+      total_keluar: Number(item.total_keluar || item.TOTAL_KELUAR || 0),
+      total_masuk: Number(item.total_masuk || item.TOTAL_MASUK || 0),
     }));
   }, [summary]);
 
@@ -182,17 +225,55 @@ export default function AnalyticsDashboard() {
               </div>
             </div>
 
+            {/* Issue #1: Grafik Trend Barang MASUK — per barang (setiap barang punya line sendiri) */}
             <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-              <h2 className="text-lg font-bold text-navy-main mb-4">Trend Barang Masuk vs Keluar</h2>
-              <div className="h-64">
+              <h2 className="text-lg font-bold text-navy-main mb-4">Trend Barang Masuk (Per Barang)</h2>
+              <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={trendData}>
+                  <LineChart data={masukChartData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="tanggal" />
                     <YAxis />
                     <Tooltip />
-                    <Line type="monotone" dataKey="masuk" stroke="#2563eb" strokeWidth={2} />
-                    <Line type="monotone" dataKey="keluar" stroke="#f97316" strokeWidth={2} />
+                    <Legend />
+                    {masukItemNames.map((name, idx) => (
+                      <Line
+                        key={name}
+                        type="monotone"
+                        dataKey={name}
+                        stroke={ITEM_COLORS[idx % ITEM_COLORS.length]}
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                        connectNulls
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Issue #1: Grafik Trend Barang KELUAR — per barang */}
+            <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+              <h2 className="text-lg font-bold text-navy-main mb-4">Trend Barang Keluar (Per Barang)</h2>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={keluarChartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="tanggal" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    {keluarItemNames.map((name, idx) => (
+                      <Line
+                        key={name}
+                        type="monotone"
+                        dataKey={name}
+                        stroke={ITEM_COLORS[idx % ITEM_COLORS.length]}
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                        connectNulls
+                      />
+                    ))}
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -226,16 +307,19 @@ export default function AnalyticsDashboard() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Issue #2: Fast-Moving sekarang ada info Masuk DAN Keluar */}
               <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-                <h2 className="text-lg font-bold text-navy-main mb-4">Fast-Moving Items</h2>
+                <h2 className="text-lg font-bold text-navy-main mb-4">Fast-Moving Items (Masuk & Keluar)</h2>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={fastMovingData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="nama_barang" hide />
+                      <XAxis dataKey="nama_barang" />
                       <YAxis />
                       <Tooltip />
-                      <Bar dataKey="total_keluar" fill="#0ea5e9" />
+                      <Legend />
+                      <Bar dataKey="total_masuk" fill="#2563eb" name="Total Masuk" />
+                      <Bar dataKey="total_keluar" fill="#f97316" name="Total Keluar" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -243,14 +327,19 @@ export default function AnalyticsDashboard() {
                   {fastMovingData.map((item) => (
                     <div key={item.id_barang} className="flex justify-between">
                       <span>{item.nama_barang}</span>
-                      <span className="font-bold">{item.total_keluar}</span>
+                      <span>
+                        <span className="font-bold text-blue-600">Masuk: {item.total_masuk}</span>
+                        {' | '}
+                        <span className="font-bold text-orange-600">Keluar: {item.total_keluar}</span>
+                      </span>
                     </div>
                   ))}
                 </div>
               </div>
 
+              {/* Issue #3: Barang Menipis sekarang <= 10% Kapasitas */}
               <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-                <h2 className="text-lg font-bold text-navy-main mb-4">Barang Menipis (&lt;= 5)</h2>
+                <h2 className="text-lg font-bold text-navy-main mb-4">Barang Menipis (&lt;= 10% Kapasitas)</h2>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -258,6 +347,7 @@ export default function AnalyticsDashboard() {
                         <th className="p-2">ID</th>
                         <th className="p-2">Nama</th>
                         <th className="p-2">Stok</th>
+                        <th className="p-2">Kapasitas</th>
                         <th className="p-2">Satuan</th>
                       </tr>
                     </thead>
@@ -268,12 +358,13 @@ export default function AnalyticsDashboard() {
                             <td className="p-2 font-semibold">{item.id_barang || item.ID_BARANG}</td>
                             <td className="p-2">{item.nama_barang || item.NAMA_BARANG}</td>
                             <td className="p-2 text-red-600 font-bold">{item.stok || item.STOK}</td>
+                            <td className="p-2 font-semibold">{item.kapasitas_max || item.KAPASITAS_MAX || '-'}</td>
                             <td className="p-2">{item.satuan || item.SATUAN}</td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan="4" className="p-4 text-center text-gray-500">
+                          <td colSpan="5" className="p-4 text-center text-gray-500">
                             Tidak ada barang menipis.
                           </td>
                         </tr>

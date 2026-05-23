@@ -8,14 +8,17 @@ use Illuminate\Http\Request;
 
 class AlertController extends Controller
 {
+    /**
+     * Issue #3: Barang menipis sekarang pakai <= 10% Kapasitas_Max
+     * Parameter threshold tetap diterima tapi tidak dipakai untuk filter utama.
+     */
     public function lowStock(Request $request)
     {
-        $threshold = (int) $request->query('threshold', 5);
-        $items = ReportService::lowStock($threshold);
+        $items = ReportService::lowStock();
 
         return response()->json([
             'success' => true,
-            'threshold' => $threshold,
+            'threshold' => '10% Kapasitas',
             'data' => $items,
         ], 200);
     }

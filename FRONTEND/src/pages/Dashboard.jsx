@@ -11,7 +11,6 @@ export default function Dashboard() {
   const [pendingKeluarTrans, setPendingKeluarTrans] = useState([]);
   
   const user = JSON.parse(localStorage.getItem('user'));
-  const RESTOCK_THRESHOLD = 5;
 
   useEffect(() => {
     if (!user) {
@@ -22,10 +21,10 @@ export default function Dashboard() {
       // SPV sama Admin berhak ngelihat dua antrean ini
       if (user.Role_Akses === 'Spv' || user.Role_Akses === 'Admin') {
         fetchPending();
-        fetchPendingKeluar(); // <--- INI YANG KETINGGALAN TADI!
+        fetchPendingKeluar();
       }
     }
-  }, []); // Kosongin biar nggak infinite loop
+  }, []);
 
   // --- FUNGSI MASTER BARANG ---
   const fetchDataBarang = async () => {
@@ -37,9 +36,7 @@ export default function Dashboard() {
 
   const fetchLowStock = async () => {
     try {
-      const response = await axios.get('http://localhost:8000/api/alerts/low-stock', {
-        params: { threshold: RESTOCK_THRESHOLD }
-      });
+      const response = await axios.get('http://localhost:8000/api/alerts/low-stock');
       const items = Array.isArray(response.data.data) ? response.data.data : [];
       setLowStockItems(items);
       setShowRestockAlert(items.length > 0);
@@ -82,7 +79,6 @@ export default function Dashboard() {
       fetchLowStock();
       fetchPending();    
     } catch (error) {
-      // INI YANG DIGANTI BIAR ERROR ASLINYA KELUAR
       alert(`🚨 GAGAL APPROVE: ${error.response?.data?.message || error.message}`);
     }
   };
@@ -95,7 +91,6 @@ export default function Dashboard() {
         alert("✅ Transaksi masuk berhasil ditolak!");
         fetchPending(); 
       } catch (error) {
-        // INI YANG DIGANTI BIAR ERROR ASLINYA KELUAR
         alert(`🚨 GAGAL REJECT: ${error.response?.data?.message || error.message}`);
       }
     }
@@ -114,9 +109,9 @@ export default function Dashboard() {
         params: { id_pegawai: user?.ID_Pegawai || user?.id_pegawai }
       });
       alert("Barang Keluar di-Approve! Stok otomatis terpotong.");
-      fetchDataBarang();    // Refresh stok di tabel atas biar keliatan berkurangnya
+      fetchDataBarang();
       fetchLowStock();
-      fetchPendingKeluar(); // Refresh antrean keluar
+      fetchPendingKeluar();
     } catch (error) {
       alert(`🚨 GAGAL APPROVE: ${error.response?.data?.message || error.message}`);
     }
@@ -144,7 +139,6 @@ export default function Dashboard() {
 
   if (!user) return null;
 
-  // NAH INI BARU BENER, RETURN-NYA DI DALAM FUNGSI DASHBOARD!
   return (
     <div className="min-h-screen bg-gray-light">
       {/* Navbar Minimalis */}
@@ -195,7 +189,6 @@ export default function Dashboard() {
             )}
 
             {/* 👷‍♂️ STAF & ADMIN ONLY: Boleh input transaksi */}
-            {/* SPV NGGAK BAKAL NGE-LIHAT TOMBOL INI */}
             {(user.Role_Akses === 'Staf' || user.Role_Akses === 'Admin') && (
               <button onClick={() => navigate('/barang-masuk')} className="bg-yellow-accent text-navy-main font-bold py-2 px-4 rounded hover:bg-yellow-500 transition shadow">
                 + Input Transaksi (Masuk/Keluar)
@@ -204,18 +197,19 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Issue #3: Alert sekarang pakai 10% Kapasitas */}
         {showRestockAlert && (user.Role_Akses === 'Staf' || user.Role_Akses === 'Admin') && (
           <div className="mb-6 border-l-4 border-red-500 bg-red-50 p-4 rounded-lg shadow">
             <div className="flex justify-between items-start gap-4">
               <div>
                 <h3 className="text-red-700 font-bold text-lg">🚨 Smart Restock Alert</h3>
                 <p className="text-sm text-red-600">
-                  Stok menipis (&lt;= {RESTOCK_THRESHOLD}). Segera lakukan transaksi Barang Masuk.
+                  Stok menipis (&lt;= 10% dari Kapasitas Gudang). Segera lakukan transaksi Barang Masuk.
                 </p>
                 <ul className="mt-2 text-sm text-gray-700 list-disc list-inside">
                   {lowStockItems.map((item) => (
                     <li key={item.id_barang || item.ID_BARANG}>
-                      {item.nama_barang || item.NAMA_BARANG} (Stok: {item.stok || item.STOK})
+                      {item.nama_barang || item.NAMA_BARANG} (Stok: {item.stok || item.STOK} / Kapasitas: {item.kapasitas_max || item.KAPASITAS_MAX || '-'})
                     </li>
                   ))}
                 </ul>
@@ -261,24 +255,20 @@ export default function Dashboard() {
                 const kMax = Number(item.kapasitas_max ?? item.KAPASITAS_MAX ?? item.Kapasitas_Max ?? 50);
                 const satuan = item.satuan || item.SATUAN || item.Satuan;
                 
-                // 2. SISTEM RESTOCK ALERT MIN 5 PCS
-                const batasMenipis = RESTOCK_THRESHOLD; 
+                // Issue #3: Batas menipis sekarang 10% dari kapasitas max
+                const batasMenipis = Math.floor(kMax * 0.1);
 
-                // 2. LOGIKA 5 STATUS GUDANG 
+                // LOGIKA 5 STATUS GUDANG (Issue #3: pakai 10% kapasitas)
                 let statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">✅ Aman</span>;
                 
                 if (stok > kMax) {
-                  // Lebih dari Kapasitas
                   statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700">🛑 Overload</span>;
                 } else if (stok === kMax) {
-                  // Pas banget Maksimal
                   statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">⚠️ Maksimum</span>;
                 } else if (stok === 0) {
-                  // 🔥 TAMBAHAN: STOK HABIS TOTAL
                   statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-black text-white">❌ Stok Habis</span>;
                 } else if (stok <= batasMenipis) {
-                  // Menipis (di bawah 10% tapi belum nol)
-                  statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">🚨 Menipis</span>;
+                  statusLabel = <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">🚨 Menipis (&le;10%)</span>;
                 }
 
           
@@ -340,6 +330,8 @@ export default function Dashboard() {
                     <th className="p-4 border-b">ID Transaksi</th>
                     <th className="p-4 border-b">Tanggal</th>
                     <th className="p-4 border-b">ID Barang</th>
+                    {/* Issue #5: Tambah kolom Nama Barang */}
+                    <th className="p-4 border-b">Nama Barang</th>
                     <th className="p-4 border-b">Qty</th>
                     <th className="p-4 border-b">Status</th>
                     <th className="p-4 border-b">Aksi</th>
@@ -351,33 +343,25 @@ export default function Dashboard() {
                       const idMasuk = trx.id_masuk || trx.ID_MASUK || trx.ID_Masuk;
                       const tglMasuk = trx.tgl_masuk || trx.TGL_MASUK || trx.Tgl_Masuk || '';
                       const idBarang = trx.id_barang || trx.ID_BARANG || trx.ID_Barang;
+                      const namaBarang = trx.nama_barang || trx.NAMA_BARANG || trx.Nama_Barang || '-';
                       const qtyMasuk = trx.qty_masuk || trx.QTY_MASUK || trx.Qty_Masuk;
                       const status = trx.status || trx.STATUS || trx.Status;
 
                       return (
                         <tr key={idMasuk} className="hover:bg-gray-50 border-b transition">
-                          {/* 1. ID Transaksi */}
                           <td className="p-4 font-bold">{idMasuk}</td>
-                          
-                          {/* 2. Tanggal (Di-substring biar jamnya ilang, sisa 10 karakter depan aja) */}
                           <td className="p-4 text-gray-600">
                             {tglMasuk.substring(0, 10)}
                           </td>
-                          
-                          {/* 3. ID Barang */}
                           <td className="p-4">{idBarang}</td>
-                          
-                          {/* 4. Qty */}
+                          {/* Issue #5: Tampilkan Nama Barang */}
+                          <td className="p-4 font-semibold text-blue-700">{namaBarang}</td>
                           <td className="p-4">{qtyMasuk}</td>
-                          
-                          {/* 5. Status */}
                           <td className="p-4">
                             <span className="px-3 py-1 rounded-full text-sm font-bold bg-orange-100 text-orange-700">
                               {status}
                             </span>
                           </td>
-                        
-                          {/* 6. Aksi (Tombol Approve & Reject) */}
                           <td className="p-4">
                             <div className="flex gap-2">
                               <button 
@@ -399,7 +383,7 @@ export default function Dashboard() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan="6" className="p-8 text-center text-gray-500 italic">
+                      <td colSpan="7" className="p-8 text-center text-gray-500 italic">
                         Tidak ada antrean barang masuk.
                       </td>
                     </tr>
@@ -409,6 +393,7 @@ export default function Dashboard() {
             </div>
           </div>
            
+{/* Issue #5: Antrean Barang Keluar juga ada Nama Barang */}
 <div className="mt-12">
   <h2 className="text-2xl font-bold text-navy-main mb-6">
   Antrean Persetujuan Barang Keluar
@@ -422,6 +407,7 @@ export default function Dashboard() {
           <th className="p-4 border-b border-orange-200">ID Keluar</th>
           <th className="p-4 border-b border-orange-200">Tanggal</th>
           <th className="p-4 border-b border-orange-200">ID Barang</th>
+          <th className="p-4 border-b border-orange-200">Nama Barang</th>
           <th className="p-4 border-b border-orange-200">Qty Keluar</th>
           <th className="p-4 border-b border-orange-200">Status</th>
           <th className="p-4 border-b border-orange-200">Aksi</th>
@@ -434,6 +420,7 @@ export default function Dashboard() {
             const idKeluar = trx.id_keluar || trx.ID_KELUAR || trx.ID_Keluar;
             const tglKeluar = trx.tgl_keluar || trx.TGL_KELUAR || trx.Tgl_Keluar || '';
             const idBarang = trx.id_barang || trx.ID_BARANG || trx.ID_Barang;
+            const namaBarang = trx.nama_barang || trx.NAMA_BARANG || trx.Nama_Barang || '-';
             const qtyKeluar = trx.qty_keluar || trx.QTY_KELUAR || trx.Qty_Keluar;
             const status = trx.status || trx.STATUS || trx.Status;
 
@@ -445,6 +432,8 @@ export default function Dashboard() {
                 {tglKeluar.substring(0, 10)}
               </td>
               <td className="p-4 font-semibold">{idBarang}</td>
+              {/* Issue #5: Tampilkan Nama Barang */}
+              <td className="p-4 font-semibold text-orange-700">{namaBarang}</td>
               <td className="p-4 font-bold">{qtyKeluar}</td>
 
               <td className="p-4">
@@ -476,7 +465,7 @@ export default function Dashboard() {
           })
         ) : (
           <tr>
-            <td colSpan="6" className="p-8 text-center text-gray-500 italic">
+            <td colSpan="7" className="p-8 text-center text-gray-500 italic">
               Tidak ada antrean barang keluar.
             </td>
           </tr>

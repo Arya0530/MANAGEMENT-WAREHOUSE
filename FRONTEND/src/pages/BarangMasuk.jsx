@@ -14,6 +14,10 @@ export default function BarangMasuk() {
   const [idSupplier, setIdSupplier] = useState('');
   const [qty, setQty] = useState('');
   const [tujuan, setTujuan] = useState('');
+
+  // Issue #6: State buat nyimpen stok barang yang dipilih
+  const [selectedStok, setSelectedStok] = useState(0);
+  const [selectedKapasitas, setSelectedKapasitas] = useState(0);
   
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
@@ -24,13 +28,16 @@ export default function BarangMasuk() {
       return;
     }
     
-    // Tarik Data Barang (Langsung dimunculin di Alert kalau Oracle ngambek)
+    // Tarik Data Barang
     axios.get('http://localhost:8000/api/barang')
       .then(res => {
         setListBarang(res.data.data);
         if (res.data.data.length > 0) {
           const first = res.data.data[0];
-          setIdBarang(first.id_barang || first.ID_BARANG || first.ID_Barang || '');
+          const firstId = first.id_barang || first.ID_BARANG || first.ID_Barang || '';
+          setIdBarang(firstId);
+          setSelectedStok(Number(first.stok ?? first.STOK ?? first.Stok ?? 0));
+          setSelectedKapasitas(Number(first.kapasitas_max ?? first.KAPASITAS_MAX ?? first.Kapasitas_Max ?? 0));
         }
       }).catch(err => alert("🚨 Gagal Load Data Barang: " + err.message));
 
@@ -45,8 +52,31 @@ export default function BarangMasuk() {
       }).catch(err => console.error("Supplier kosong/error", err));
   }, [navigate, user.Role_Akses]);
 
+  // Issue #6: Update stok saat user ganti pilihan barang
+  const handleBarangChange = (newIdBarang) => {
+    setIdBarang(newIdBarang);
+    const found = listBarang.find(brg => {
+      const id = brg.id_barang || brg.ID_BARANG || brg.ID_Barang;
+      return id === newIdBarang;
+    });
+    if (found) {
+      setSelectedStok(Number(found.stok ?? found.STOK ?? found.Stok ?? 0));
+      setSelectedKapasitas(Number(found.kapasitas_max ?? found.KAPASITAS_MAX ?? found.Kapasitas_Max ?? 0));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Issue #6: Validasi client-side - qty keluar tidak boleh melebihi stok
+    if (activeTab === 'keluar') {
+      const qtyNum = Number(qty);
+      if (qtyNum > selectedStok) {
+        alert(`🚨 GAGAL! Qty keluar (${qtyNum}) melebihi stok tersedia (${selectedStok}).\nKurangi jumlah yang diinputkan.`);
+        return;
+      }
+    }
+
     try {
       let response;
       if (activeTab === 'masuk') {
@@ -74,9 +104,12 @@ export default function BarangMasuk() {
       navigate('/dashboard');
       
     } catch (err) {
-      alert(`🚨 ERROR AXIOS: ${err.response?.data?.message || err.message}`);
+      alert(`🚨 ERROR: ${err.response?.data?.message || err.message}`);
     }
   };
+
+  // Issue #6: Cek apakah qty melebihi stok (untuk peringatan real-time)
+  const isOverStock = activeTab === 'keluar' && qty && Number(qty) > selectedStok;
 
   return (
     <div className="min-h-screen bg-gray-light p-8">
@@ -106,10 +139,15 @@ export default function BarangMasuk() {
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
           
-          {/* INPUT: PILIH BARANG (Udah dipasangin default opsi biar ga mendelep) */}
+          {/* INPUT: PILIH BARANG */}
           <div>
             <label className="block text-gray-700 font-medium mb-2">Pilih Barang</label>
-            <select className="w-full p-3 border rounded focus:ring-2 focus:ring-navy-main" value={idBarang} onChange={(e) => setIdBarang(e.target.value)} required>
+            <select 
+              className="w-full p-3 border rounded focus:ring-2 focus:ring-navy-main" 
+              value={idBarang} 
+              onChange={(e) => handleBarangChange(e.target.value)} 
+              required
+            >
               {listBarang.length === 0 ? (
                 <option value="">⏳ Loading / Data Kosong...</option>
               ) : (
@@ -125,6 +163,12 @@ export default function BarangMasuk() {
                 })
               )}
             </select>
+            {/* Issue #6: Tampilkan info stok & kapasitas barang yang dipilih */}
+            {activeTab === 'keluar' && (
+              <p className="text-xs text-gray-500 mt-1">
+                Stok tersedia: <strong className="text-blue-600">{selectedStok}</strong> | Kapasitas Max: <strong>{selectedKapasitas}</strong>
+              </p>
+            )}
           </div>
 
           {/* Kondisi Tab Masuk: SUPPLIER */}
@@ -160,11 +204,42 @@ export default function BarangMasuk() {
           {/* INPUT: QUANTITY */}
           <div>
             <label className="block text-gray-700 font-medium mb-2">Kuantitas (Qty)</label>
-            <input type="number" min="1" className="w-full p-3 border rounded focus:ring-2 focus:ring-navy-main font-bold" value={qty} onChange={(e) => setQty(e.target.value)} required />
+            <input 
+              type="number" 
+              min="1" 
+              max={activeTab === 'keluar' ? selectedStok : undefined}
+              className={`w-full p-3 border rounded focus:ring-2 font-bold ${
+                isOverStock 
+                  ? 'border-red-500 focus:ring-red-500 bg-red-50' 
+                  : 'focus:ring-navy-main'
+              }`} 
+              value={qty} 
+              onChange={(e) => setQty(e.target.value)} 
+              required 
+            />
+            {/* Issue #6: Peringatan real-time kalau qty melebihi stok */}
+            {isOverStock && (
+              <p className="text-sm text-red-600 font-bold mt-1">
+                🚨 Qty melebihi stok tersedia ({selectedStok})! Tidak bisa diproses.
+              </p>
+            )}
           </div>
 
-          <button type="submit" className={`w-full text-white font-bold py-3 rounded-lg shadow-lg transition text-lg mt-4 ${activeTab === 'masuk' ? 'bg-navy-main hover:bg-blue-900' : 'bg-orange-600 hover:bg-orange-800'}`}>
-            Simpan {activeTab === 'masuk' ? 'Barang Masuk' : 'Barang Keluar'}
+          <button 
+            type="submit" 
+            disabled={isOverStock}
+            className={`w-full text-white font-bold py-3 rounded-lg shadow-lg transition text-lg mt-4 ${
+              isOverStock
+                ? 'bg-gray-400 cursor-not-allowed'
+                : activeTab === 'masuk' 
+                  ? 'bg-navy-main hover:bg-blue-900' 
+                  : 'bg-orange-600 hover:bg-orange-800'
+            }`}
+          >
+            {isOverStock 
+              ? '⛔ Qty Melebihi Stok!' 
+              : `Simpan ${activeTab === 'masuk' ? 'Barang Masuk' : 'Barang Keluar'}`
+            }
           </button>
         </form>
 

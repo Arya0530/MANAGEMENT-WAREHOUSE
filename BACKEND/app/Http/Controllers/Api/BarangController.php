@@ -26,7 +26,8 @@ public function index()
             'Stok'          => 'required|numeric|min:0',
             'Satuan'        => 'required',
             'Batas_Minimum' => 'required|numeric', 
-            'Kapasitas_Max' => 'required|numeric'  
+            'Kapasitas_Max' => 'required|numeric',
+            'ID_Supplier'   => 'required'  
         ]);
 
         $idOtomatis = 'BRG-' . rand(1000, 9999);
@@ -40,7 +41,8 @@ public function index()
                 'STOK'          => $request->Stok,
                 'SATUAN'        => $request->Satuan,
                 'BATAS_MINIMUM' => $request->Batas_Minimum, 
-                'KAPASITAS_MAX' => $request->Kapasitas_Max
+                'KAPASITAS_MAX' => $request->Kapasitas_Max,
+                'ID_SUPPLIER'   => $request->ID_Supplier
             ]);
 
             $pegawaiId = $request->input('ID_Pegawai') ?: $request->input('id_pegawai');
@@ -61,7 +63,8 @@ public function index()
                     'stok'          => $request->Stok,
                     'satuan'        => $request->Satuan,
                     'batas_minimum' => $request->Batas_Minimum,
-                    'kapasitas_max' => $request->Kapasitas_Max
+                    'kapasitas_max' => $request->Kapasitas_Max,
+                    'id_supplier'   => $request->ID_Supplier
                 ]);
                 $pegawaiId = $request->input('ID_Pegawai') ?: $request->input('id_pegawai');
                 AuditLogger::record(

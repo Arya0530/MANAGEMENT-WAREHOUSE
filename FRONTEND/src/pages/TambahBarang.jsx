@@ -11,6 +11,10 @@ export default function TambahBarang() {
   // TAMBAHAN: State buat Kapasitas Gudang (Min kita default aja 0)
   const [kapasitasMax, setKapasitasMax] = useState('50');
   
+  // Issue #7: State buat Supplier
+  const [idSupplier, setIdSupplier] = useState('');
+  const [listSupplier, setListSupplier] = useState([]);
+
   const [pesan, setPesan] = useState({ text: '', type: '' });
   const [listKategori, setListKategori] = useState([]);
   
@@ -22,6 +26,7 @@ export default function TambahBarang() {
       navigate('/dashboard');
       return;
     }
+    // Fetch Kategori
     axios.get('http://localhost:8000/api/kategori')
       .then(res => {
         const data = res.data.data || [];
@@ -32,6 +37,18 @@ export default function TambahBarang() {
         }
       })
       .catch(err => console.error("Gagal narik kategori", err));
+    
+    // Issue #7: Fetch Supplier
+    axios.get('http://localhost:8000/api/supplier')
+      .then(res => {
+        const data = res.data.data || [];
+        setListSupplier(data);
+        const first = data[0];
+        if (first) {
+          setIdSupplier(first.id_supplier || first.ID_SUPPLIER || first.ID_Supplier || '');
+        }
+      })
+      .catch(err => console.error("Gagal narik supplier", err));
   }, []);
 
   const handleSubmit = async (e) => {
@@ -41,6 +58,7 @@ export default function TambahBarang() {
     try {
       const response = await axios.post('http://localhost:8000/api/barang', {
         ID_Kategori: idKategori,
+        ID_Supplier: idSupplier,   // Issue #7: Kirim ID Supplier
         Nama_Barang: namaBarang,
         Stok: stok,
         Satuan: satuan,
@@ -93,6 +111,32 @@ export default function TambahBarang() {
                     })}
                 </select>
             </div>
+
+            {/* Issue #7: Dropdown Supplier */}
+            <div>
+              <label className="block text-gray-700 font-medium mb-1">Supplier</label>
+              <select
+                className="w-full p-2 border rounded focus:ring-2 focus:ring-navy-main"
+                value={idSupplier}
+                onChange={(e) => setIdSupplier(e.target.value)}
+                required
+              >
+                {listSupplier.length === 0 ? (
+                  <option value="">⏳ Loading Supplier...</option>
+                ) : (
+                  listSupplier.map((sup) => {
+                    const id = sup.id_supplier || sup.ID_SUPPLIER || sup.ID_Supplier;
+                    const nama = sup.nama_supplier || sup.NAMA_SUPPLIER || sup.Nama_Supplier;
+                    return (
+                      <option key={id} value={id}>
+                        {nama} ({id})
+                      </option>
+                    );
+                  })
+                )}
+              </select>
+            </div>
+
             <div>
               <label className="block text-gray-700 font-medium mb-1">Nama Barang</label>
               <input type="text" className="w-full p-2 border rounded focus:ring-2 focus:ring-navy-main" placeholder="Contoh: Ayam Potong" value={namaBarang} onChange={(e) => setNamaBarang(e.target.value)} required />
@@ -113,7 +157,7 @@ export default function TambahBarang() {
               </div>
             </div>
 
-            {/* TAMBAHAN FITUR: Input Kapasitas Maksimum Gudang */}
+            {/* Input Kapasitas Maksimum Gudang */}
             <div className="pt-2 border-t mt-4">
               <label className="block text-gray-700 font-medium mb-1 text-sm text-blue-600">
                 Kapasitas Maksimum Gudang
@@ -127,7 +171,7 @@ export default function TambahBarang() {
                 required 
               />
               <p className="text-xs text-gray-500 mt-1 italic">
-                *Sistem akan memberikan peringatan "Menipis" jika stok &lt;= 5.
+                *Sistem akan memberikan peringatan "Menipis" jika stok &lt;= 10% dari kapasitas ini.
               </p>
             </div>
 

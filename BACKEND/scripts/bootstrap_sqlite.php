@@ -18,6 +18,7 @@ $pdo->exec('CREATE TABLE IF NOT EXISTS SUPPLIER (
 $pdo->exec('CREATE TABLE IF NOT EXISTS BARANG (
     ID_Barang TEXT PRIMARY KEY,
     ID_Kategori TEXT,
+    ID_Supplier TEXT,
     Nama_Barang TEXT,
     Stok INTEGER,
     Satuan TEXT,
@@ -62,7 +63,7 @@ $pdo->exec('CREATE TABLE IF NOT EXISTS AUDIT_LOG (
 
 $pdo->exec("INSERT OR IGNORE INTO KATEGORI (ID_Kategori, Nama_Kategori) VALUES ('KAT-001', 'Umum')");
 $pdo->exec("INSERT OR IGNORE INTO SUPPLIER (ID_Supplier, Nama_Supplier, Kontak, Alamat) VALUES ('SUP-001', 'Default Supplier', '000000', 'Local')");
-$pdo->exec("INSERT OR IGNORE INTO BARANG (ID_Barang, ID_Kategori, Nama_Barang, Stok, Satuan, Batas_Minimum, Kapasitas_Max) VALUES ('BRG-001', 'KAT-001', 'Barang Contoh', 50, 'pcs', 5, 200)");
+$pdo->exec("INSERT OR IGNORE INTO BARANG (ID_Barang, ID_Kategori, ID_Supplier, Nama_Barang, Stok, Satuan, Batas_Minimum, Kapasitas_Max) VALUES ('BRG-001', 'KAT-001', 'SUP-001', 'Barang Contoh', 50, 'pcs', 5, 200)");
 $pdo->exec("INSERT OR IGNORE INTO PEGAWAI (ID_Pegawai, Nama, Role_Akses, Username, Password) VALUES ('PG-001', 'Admin', 'Admin', 'admin', 'admin123')");
 
 echo "SQLite bootstrap done\n";

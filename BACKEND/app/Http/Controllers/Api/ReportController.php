@@ -9,6 +9,10 @@ use Illuminate\Http\Request;
 
 class ReportController extends Controller
 {
+    /**
+     * Issue #4: Semua method PDF sekarang dibungkus try-catch
+     * supaya kalau error, return JSON error (bukan blank page).
+     */
     private function pdfResponse(string $view, array $data, string $filename)
     {
         $pdf = Pdf::loadView($view, $data)->setPaper('a4');
@@ -22,36 +26,57 @@ class ReportController extends Controller
 
     public function riwayatPdf(Request $request)
     {
-        $role = $request->query('role');
-        $pegawaiId = $request->query('id_pegawai');
-        $rows = ReportService::riwayat($role, $pegawaiId);
+        try {
+            $role = $request->query('role');
+            $pegawaiId = $request->query('id_pegawai');
+            $rows = ReportService::riwayat($role, $pegawaiId);
 
-        return $this->pdfResponse('reports.riwayat', [
-            'rows' => $rows,
-            'generatedAt' => now(),
-        ], 'laporan_riwayat.pdf');
+            return $this->pdfResponse('reports.riwayat', [
+                'rows' => $rows,
+                'generatedAt' => now(),
+            ], 'laporan_riwayat.pdf');
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal generate PDF Riwayat: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function restockPdf(Request $request)
     {
-        $threshold = (int) $request->query('threshold', 5);
-        $items = ReportService::lowStock($threshold);
+        try {
+            $threshold = (int) $request->query('threshold', 5);
+            $items = ReportService::lowStock($threshold);
 
-        return $this->pdfResponse('reports.restock', [
-            'items' => $items,
-            'threshold' => $threshold,
-            'generatedAt' => now(),
-        ], 'laporan_restock.pdf');
+            return $this->pdfResponse('reports.restock', [
+                'items' => $items,
+                'threshold' => '10% Kapasitas',
+                'generatedAt' => now(),
+            ], 'laporan_restock.pdf');
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal generate PDF Restock: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function analyticsPdf(Request $request)
     {
-        $days = (int) $request->query('days', 30);
-        $summary = ReportService::analyticsSummary($days);
+        try {
+            $days = (int) $request->query('days', 30);
+            $summary = ReportService::analyticsSummary($days);
 
-        return $this->pdfResponse('reports.analytics', [
-            'summary' => $summary,
-            'generatedAt' => now(),
-        ], 'laporan_analytics.pdf');
+            return $this->pdfResponse('reports.analytics', [
+                'summary' => $summary,
+                'generatedAt' => now(),
+            ], 'laporan_analytics.pdf');
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal generate PDF Analytics: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

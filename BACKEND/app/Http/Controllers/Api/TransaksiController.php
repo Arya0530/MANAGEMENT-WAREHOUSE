@@ -24,15 +24,15 @@ class TransaksiController extends Controller
         // 2. Bikin ID Transaksi Otomatis (Contoh: TRX-20260405-1234)
         $idMasukOtomatis = 'TRX-' . date('ymd') . '-' . rand(1000, 9999);
 
-        $qtyMasuk = 1;
+        $qtyMasuk = (int) $request->Qty_Masuk;
 
-        // 3. Simpan ke database Oracle
+        // 3. Simpan ke database
         $transaksi = BarangMasuk::create([
             'ID_Masuk'    => $idMasukOtomatis,
             'ID_Barang'   => $request->ID_Barang,
             'ID_Supplier' => $request->ID_Supplier,
             'ID_Pegawai'  => $request->ID_Pegawai,
-            'Tgl_Masuk'   => now(), // <-- INI TANGGALNYA, OTOMATIS DARI SERVER!
+            'Tgl_Masuk'   => now(),
             'Qty_Masuk'   => $qtyMasuk,
             'Status'      => 'PENDING'
         ]);
@@ -49,12 +49,15 @@ class TransaksiController extends Controller
         ], 201);
     }
 
-    // Fungsi narik data pending buat Supervisor
- // 1. Narik data barang keluar yang masih PENDING buat SPV
+    /**
+     * Issue #5: Pending keluar sekarang JOIN ke BARANG biar ada nama_barang
+     */
     public function pendingKeluar()
     {
-        $transaksi = \Illuminate\Support\Facades\DB::table('BARANG_KELUAR')
-                        ->where('status', 'PENDING')->get();
+        $transaksi = \Illuminate\Support\Facades\DB::table('BARANG_KELUAR as bk')
+                        ->join('BARANG as b', 'bk.ID_Barang', '=', 'b.ID_Barang')
+                        ->select('bk.*', 'b.Nama_Barang as nama_barang')
+                        ->where('bk.status', 'PENDING')->get();
         return response()->json(['success' => true, 'data' => $transaksi], 200);
     }
 
@@ -110,7 +113,10 @@ class TransaksiController extends Controller
         }
     }
    
-    // Fungsi Input Barang Keluar (Status PENDING SPV)
+    /**
+     * Issue #6: Input Barang Keluar sekarang VALIDASI STOK dulu.
+     * Kalau Qty_Keluar > Stok barang, langsung DITOLAK.
+     */
     public function keluar(Request $request)
     {
         $request->validate([
@@ -119,13 +125,35 @@ class TransaksiController extends Controller
             'Tujuan'     => 'required'
         ]);
 
+        // Issue #6: CEK STOK DULU SEBELUM INPUT!
+        $barang = \Illuminate\Support\Facades\DB::table('BARANG')
+            ->where('ID_Barang', $request->ID_Barang)
+            ->first();
+
+        if (!$barang) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Barang tidak ditemukan di database!'
+            ], 404);
+        }
+
+        $stokSekarang = (int) ($barang->Stok ?? $barang->stok ?? $barang->STOK ?? 0);
+        $qtyKeluar = (int) $request->Qty_Keluar;
+
+        if ($qtyKeluar > $stokSekarang) {
+            return response()->json([
+                'success' => false,
+                'message' => "Qty keluar ($qtyKeluar) melebihi stok tersedia ($stokSekarang)! Tidak bisa diproses."
+            ], 422);
+        }
+
         $idKeluarOtomatis = 'OUT-' . date('ymd') . '-' . rand(1000, 9999);
 
         try {
             \Illuminate\Support\Facades\DB::table('BARANG_KELUAR')->insert([
                 'ID_Keluar'  => $idKeluarOtomatis,
                 'ID_Barang'  => $request->ID_Barang,
-                'Qty_Keluar' => $request->Qty_Keluar,
+                'Qty_Keluar' => $qtyKeluar,
                 'Tujuan'     => $request->Tujuan,
                 'ID_Pegawai' => $request->ID_Pegawai,
                 'Tgl_Keluar' => now(),
@@ -134,7 +162,7 @@ class TransaksiController extends Controller
 
             AuditLogger::record(
                 $request->ID_Pegawai,
-                'Transaksi Keluar dibuat: ' . $idKeluarOtomatis . ' (Barang ' . $request->ID_Barang . ', Qty ' . $request->Qty_Keluar . ')'
+                'Transaksi Keluar dibuat: ' . $idKeluarOtomatis . ' (Barang ' . $request->ID_Barang . ', Qty ' . $qtyKeluar . ')'
             );
 
             return response()->json(['success' => true, 'message' => 'Permintaan Barang Keluar dicatat! Menunggu persetujuan SPV.'], 200);
@@ -147,11 +175,15 @@ class TransaksiController extends Controller
     // FUNGSI ANTREAN & APPROVAL BARANG MASUK
     // ==========================================
 
-    // 1. Narik data barang masuk yang masih PENDING
+    /**
+     * Issue #5: Pending masuk sekarang JOIN ke BARANG biar ada nama_barang
+     */
     public function pending()
     {
-        $transaksi = \Illuminate\Support\Facades\DB::table('BARANG_MASUK')
-                        ->where('status', 'PENDING')->get();
+        $transaksi = \Illuminate\Support\Facades\DB::table('BARANG_MASUK as bm')
+                        ->join('BARANG as b', 'bm.ID_Barang', '=', 'b.ID_Barang')
+                        ->select('bm.*', 'b.Nama_Barang as nama_barang')
+                        ->where('bm.status', 'PENDING')->get();
         return response()->json(['success' => true, 'data' => $transaksi], 200);
     }
 
@@ -165,10 +197,11 @@ class TransaksiController extends Controller
             
             \Illuminate\Support\Facades\DB::table('BARANG_MASUK')->where('id_masuk', $id)->update(['status' => 'APPROVED']);
 
-            // Karena ini barang masuk, stoknya NAIK (increment)
+            // Karena ini barang masuk, stoknya NAIK (increment) — pakai qty_masuk yang benar
+            $qtyMasuk = (int) ($trx->qty_masuk ?? $trx->Qty_Masuk ?? 1);
             \Illuminate\Support\Facades\DB::table('BARANG')
                 ->where('ID_Barang', $trx->id_barang)
-                ->increment('Stok', 1);
+                ->increment('Stok', $qtyMasuk);
 
             \Illuminate\Support\Facades\DB::commit();
             $pegawaiId = $request->query('id_pegawai') ?: $request->input('ID_Pegawai');
@@ -188,4 +221,4 @@ class TransaksiController extends Controller
         AuditLogger::record($pegawaiId, 'Reject Barang Masuk: ' . $id);
         return response()->json(['success' => true, 'message' => 'Transaksi Masuk DITOLAK!']);
     }
-} // <--- Ini kurung kurawal penutup file (class) lu
+}

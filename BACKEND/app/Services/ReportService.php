@@ -6,6 +6,10 @@ use Illuminate\Support\Facades\DB;
 
 class ReportService
 {
+    /**
+     * Issue #3: Barang menipis = stok <= 10% dari Kapasitas_Max
+     * Tidak pakai threshold hardcoded lagi.
+     */
     public static function lowStock(int $threshold = 5): array
     {
         $items = DB::table('BARANG')
@@ -13,9 +17,10 @@ class ReportService
                 'ID_Barang as id_barang',
                 'Nama_Barang as nama_barang',
                 'Stok as stok',
-                'Satuan as satuan'
+                'Satuan as satuan',
+                'Kapasitas_Max as kapasitas_max'
             )
-            ->where('Stok', '<=', $threshold)
+            ->whereRaw('Stok <= Kapasitas_Max * 0.1')
             ->orderBy('Stok', 'asc')
             ->get();
 
@@ -30,21 +35,12 @@ class ReportService
         $totalKategori = DB::table('KATEGORI')->count();
         $totalSupplier = DB::table('SUPPLIER')->count();
 
-        $masukTrend = self::trendByDate('BARANG_MASUK', 'Tgl_Masuk', 'Qty_Masuk', $since);
-        $keluarTrend = self::trendByDate('BARANG_KELUAR', 'Tgl_Keluar', 'Qty_Keluar', $since);
+        // Issue #1: Trend sekarang include nama_barang per item
+        $masukTrend = self::trendByDateWithName('BARANG_MASUK', 'Tgl_Masuk', 'Qty_Masuk', $since);
+        $keluarTrend = self::trendByDateWithName('BARANG_KELUAR', 'Tgl_Keluar', 'Qty_Keluar', $since);
 
-        $fastMoving = DB::table('BARANG_KELUAR as bk')
-            ->join('BARANG as b', 'bk.ID_Barang', '=', 'b.ID_Barang')
-            ->select(
-                'bk.ID_Barang as id_barang',
-                'b.Nama_Barang as nama_barang',
-                DB::raw('SUM(bk.Qty_Keluar) as total_keluar')
-            )
-            ->where('bk.Tgl_Keluar', '>=', $since)
-            ->groupBy('bk.ID_Barang', 'b.Nama_Barang')
-            ->orderByRaw('SUM(bk.Qty_Keluar) desc')
-            ->limit(5)
-            ->get();
+        // Issue #2: Fast-moving sekarang include total_masuk juga
+        $fastMoving = self::fastMovingWithFlow($since);
 
         return [
             'range_days' => $days,
@@ -57,7 +53,7 @@ class ReportService
                 'masuk' => $masukTrend,
                 'keluar' => $keluarTrend,
             ],
-            'fast_moving' => $fastMoving->all(),
+            'fast_moving' => $fastMoving,
             'low_stock' => self::lowStock(5),
         ];
     }
@@ -126,21 +122,80 @@ class ReportService
         return $riwayat->sortByDesc('tanggal')->values()->all();
     }
 
-    private static function trendByDate(string $table, string $dateColumn, string $qtyColumn, $since): array
+    /**
+     * Issue #1: Trend per tanggal dengan nama_barang di setiap row
+     */
+    private static function trendByDateWithName(string $table, string $dateColumn, string $qtyColumn, $since): array
     {
         $dateExpr = self::dateExpression($dateColumn);
 
-        $rows = DB::table($table)
+        // JOIN ke BARANG untuk dapet nama_barang
+        $rows = DB::table($table . ' as t')
+            ->join('BARANG as b', 't.ID_Barang', '=', 'b.ID_Barang')
             ->select(
                 DB::raw($dateExpr . ' as tanggal'),
-                DB::raw('SUM(' . $qtyColumn . ') as total')
+                'b.Nama_Barang as nama_barang',
+                'b.ID_Barang as id_barang',
+                DB::raw('SUM(t.' . $qtyColumn . ') as total')
             )
-            ->where($dateColumn, '>=', $since)
-            ->groupBy(DB::raw($dateExpr))
+            ->where('t.' . $dateColumn, '>=', $since)
+            ->groupBy(DB::raw($dateExpr), 'b.Nama_Barang', 'b.ID_Barang')
             ->orderBy(DB::raw($dateExpr))
             ->get();
 
         return $rows->all();
+    }
+
+    /**
+     * Issue #2: Fast-moving items dengan info total_masuk DAN total_keluar
+     */
+    private static function fastMovingWithFlow($since): array
+    {
+        // Hitung total keluar per barang
+        $keluarData = DB::table('BARANG_KELUAR as bk')
+            ->join('BARANG as b', 'bk.ID_Barang', '=', 'b.ID_Barang')
+            ->select(
+                'bk.ID_Barang as id_barang',
+                'b.Nama_Barang as nama_barang',
+                DB::raw('SUM(bk.Qty_Keluar) as total_keluar')
+            )
+            ->where('bk.Tgl_Keluar', '>=', $since)
+            ->groupBy('bk.ID_Barang', 'b.Nama_Barang')
+            ->orderByRaw('SUM(bk.Qty_Keluar) desc')
+            ->limit(5)
+            ->get()
+            ->keyBy('id_barang');
+
+        // Hitung total masuk per barang (hanya barang yang sudah ada di keluarData)
+        $barangIds = $keluarData->pluck('id_barang')->all();
+
+        $masukData = collect();
+        if (!empty($barangIds)) {
+            $masukData = DB::table('BARANG_MASUK as bm')
+                ->select(
+                    'bm.ID_Barang as id_barang',
+                    DB::raw('SUM(bm.Qty_Masuk) as total_masuk')
+                )
+                ->where('bm.Tgl_Masuk', '>=', $since)
+                ->whereIn('bm.ID_Barang', $barangIds)
+                ->groupBy('bm.ID_Barang')
+                ->get()
+                ->keyBy('id_barang');
+        }
+
+        // Gabungkan data keluar + masuk
+        $result = [];
+        foreach ($keluarData as $id => $item) {
+            $totalMasuk = $masukData->has($id) ? $masukData[$id]->total_masuk : 0;
+            $result[] = (object) [
+                'id_barang' => $item->id_barang,
+                'nama_barang' => $item->nama_barang,
+                'total_keluar' => $item->total_keluar,
+                'total_masuk' => $totalMasuk,
+            ];
+        }
+
+        return $result;
     }
 
     private static function dateExpression(string $column): string
@@ -148,9 +203,9 @@ class ReportService
         $driver = DB::getDriverName();
 
         if ($driver === 'sqlite' || $driver === 'pgsql' || $driver === 'mysql') {
-            return 'date(' . $column . ')';
+            return 'date(t.' . $column . ')';
         }
 
-        return 'TRUNC(' . $column . ')';
+        return 'TRUNC(t.' . $column . ')';
     }
 }

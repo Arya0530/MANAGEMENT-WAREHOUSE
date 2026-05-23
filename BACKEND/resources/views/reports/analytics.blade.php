@@ -16,7 +16,7 @@
 </head>
 <body>
     <h1>Laporan Analytics Gudang</h1>
-    <div class="meta">Range: {{ $summary['range_days'] }} hari | Generated: {{ $generatedAt }}</div>
+    <div class="meta">Range: {{ $summary['range_days'] ?? '-' }} hari | Generated: {{ $generatedAt }}</div>
 
     <div class="section">
         <strong>Ringkasan</strong>
@@ -30,14 +30,15 @@
             </thead>
             <tbody>
                 <tr>
-                    <td class="right">{{ $summary['totals']['barang'] }}</td>
-                    <td class="right">{{ $summary['totals']['kategori'] }}</td>
-                    <td class="right">{{ $summary['totals']['supplier'] }}</td>
+                    <td class="right">{{ $summary['totals']['barang'] ?? 0 }}</td>
+                    <td class="right">{{ $summary['totals']['kategori'] ?? 0 }}</td>
+                    <td class="right">{{ $summary['totals']['supplier'] ?? 0 }}</td>
                 </tr>
             </tbody>
         </table>
     </div>
 
+    {{-- Issue #2: Fast-Moving sekarang ada kolom Total Masuk dan Total Keluar --}}
     <div class="section">
         <strong>Fast-Moving Items</strong>
         <table>
@@ -45,43 +46,48 @@
                 <tr>
                     <th>ID Barang</th>
                     <th>Nama Barang</th>
+                    <th class="right">Total Masuk</th>
                     <th class="right">Total Keluar</th>
                 </tr>
             </thead>
             <tbody>
-            @forelse ($summary['fast_moving'] as $item)
+            @forelse ($summary['fast_moving'] ?? [] as $item)
                 <tr>
                     <td>{{ $item->id_barang ?? '-' }}</td>
                     <td>{{ $item->nama_barang ?? '-' }}</td>
+                    <td class="right">{{ $item->total_masuk ?? 0 }}</td>
                     <td class="right">{{ $item->total_keluar ?? '-' }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="3">Tidak ada data.</td>
+                    <td colspan="4">Tidak ada data.</td>
                 </tr>
             @endforelse
             </tbody>
         </table>
     </div>
 
+    {{-- Issue #1: Trend sekarang include nama_barang --}}
     <div class="section">
         <strong>Trend Barang Masuk</strong>
         <table>
             <thead>
                 <tr>
                     <th>Tanggal</th>
+                    <th>Nama Barang</th>
                     <th class="right">Total</th>
                 </tr>
             </thead>
             <tbody>
-            @forelse ($summary['trend']['masuk'] as $row)
+            @forelse ($summary['trend']['masuk'] ?? [] as $row)
                 <tr>
                     <td>{{ $row->tanggal ?? '-' }}</td>
+                    <td>{{ $row->nama_barang ?? '-' }}</td>
                     <td class="right">{{ $row->total ?? '-' }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="2">Tidak ada data.</td>
+                    <td colspan="3">Tidak ada data.</td>
                 </tr>
             @endforelse
             </tbody>
@@ -94,18 +100,20 @@
             <thead>
                 <tr>
                     <th>Tanggal</th>
+                    <th>Nama Barang</th>
                     <th class="right">Total</th>
                 </tr>
             </thead>
             <tbody>
-            @forelse ($summary['trend']['keluar'] as $row)
+            @forelse ($summary['trend']['keluar'] ?? [] as $row)
                 <tr>
                     <td>{{ $row->tanggal ?? '-' }}</td>
+                    <td>{{ $row->nama_barang ?? '-' }}</td>
                     <td class="right">{{ $row->total ?? '-' }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="2">Tidak ada data.</td>
+                    <td colspan="3">Tidak ada data.</td>
                 </tr>
             @endforelse
             </tbody>
