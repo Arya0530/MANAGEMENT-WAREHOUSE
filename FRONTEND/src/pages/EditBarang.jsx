@@ -121,7 +121,7 @@ export default function EditBarang() {
                 required 
               />
               <p className="text-xs text-gray-500 mt-1 italic">
-                *Sistem akan memberikan peringatan "Menipis" jika stok &lt;= 5.
+                *Sistem akan memberikan peringatan "Menipis" jika stok &lt;= 10%.
               </p>
             </div>
 

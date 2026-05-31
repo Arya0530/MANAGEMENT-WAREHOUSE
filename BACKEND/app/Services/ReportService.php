@@ -44,6 +44,8 @@ class ReportService
 
         return [
             'range_days' => $days,
+            'date_from'  => $since->toDateString(),
+            'date_to'    => now()->toDateString(),
             'totals' => [
                 'barang' => $totalBarang,
                 'kategori' => $totalKategori,
@@ -131,9 +133,18 @@ class ReportService
      */
     private static function trendByDateWithName(string $table, string $dateColumn, string $qtyColumn, $since): array
     {
-        $dateExpr = self::dateExpression($dateColumn);
+        $driver = DB::getDriverName();
 
-        // JOIN ke BARANG untuk dapet nama_barang
+        // Oracle: TRUNC tidak butuh prefix alias tabel
+        // MySQL/SQLite: pakai DATE()
+        if ($driver === 'oracle' || $driver === 'oci8') {
+            $dateExpr    = 'TRUNC(t.' . $dateColumn . ')';
+            $groupByExpr = 'TRUNC(t.' . $dateColumn . ')';
+        } else {
+            $dateExpr    = 'DATE(t.' . $dateColumn . ')';
+            $groupByExpr = 'DATE(t.' . $dateColumn . ')';
+        }
+
         $rows = DB::table($table . ' as t')
             ->join('BARANG as b', 't.ID_Barang', '=', 'b.ID_Barang')
             ->select(
@@ -143,8 +154,8 @@ class ReportService
                 DB::raw('SUM(t.' . $qtyColumn . ') as total')
             )
             ->where('t.' . $dateColumn, '>=', $since)
-            ->groupBy(DB::raw($dateExpr), 'b.Nama_Barang', 'b.ID_Barang')
-            ->orderBy(DB::raw($dateExpr))
+            ->groupBy(DB::raw($groupByExpr), 'b.Nama_Barang', 'b.ID_Barang')
+            ->orderBy(DB::raw($groupByExpr))
             ->get();
 
         return $rows->all();
@@ -206,10 +217,10 @@ class ReportService
     {
         $driver = DB::getDriverName();
 
-        if ($driver === 'sqlite' || $driver === 'pgsql' || $driver === 'mysql') {
-            return 'date(t.' . $column . ')';
+        if ($driver === 'oracle' || $driver === 'oci8') {
+            return 'TRUNC(' . $column . ')';
         }
 
-        return 'TRUNC(t.' . $column . ')';
+        return 'DATE(' . $column . ')';
     }
 }

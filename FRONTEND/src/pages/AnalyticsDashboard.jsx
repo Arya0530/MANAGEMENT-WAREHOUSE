@@ -12,8 +12,6 @@ import {
   Pie,
   Cell,
   Legend,
-  BarChart,
-  Bar,
 } from 'recharts';
 import api from '../lib/api';
 
@@ -39,17 +37,86 @@ const openPdf = (path, params = {}) => {
   window.open(url, '_blank', 'noopener,noreferrer');
 };
 
-// Warna-warna buat line chart per barang
-const ITEM_COLORS = [
-  '#2563eb', '#f97316', '#10b981', '#ef4444', '#8b5cf6',
-  '#06b6d4', '#ec4899', '#f59e0b', '#6366f1', '#14b8a6',
+// CustomTooltip untuk chart gabungan — tampil nama barang saat hover titik
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload || !payload.length) return null;
+  const masukEntry = payload.find((p) => p.dataKey === 'totalMasuk');
+  const keluarEntry = payload.find((p) => p.dataKey === 'totalKeluar');
+  const data = payload[0]?.payload;
+
+  return (
+    <div
+      style={{
+        background: 'white',
+        border: '1px solid #e5e7eb',
+        borderRadius: '12px',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
+        padding: '12px 16px',
+        fontSize: '13px',
+        maxWidth: '260px',
+      }}
+    >
+      <p style={{ fontWeight: 700, color: '#1e3a5f', marginBottom: 8 }}>📅 {label}</p>
+
+      {masukEntry && (
+        <div style={{ marginBottom: 8 }}>
+          <p style={{ color: '#2563eb', fontWeight: 600 }}>
+            🔵 Masuk: <strong>{masukEntry.value}</strong>
+          </p>
+          {data?.namaBarangMasuk?.length > 0 && (
+            <ul style={{ color: '#6b7280', fontSize: 11, paddingLeft: 8, marginTop: 4 }}>
+              {data.namaBarangMasuk.map((n, i) => (
+                <li key={i}>• {n}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {keluarEntry && (
+        <div>
+          <p style={{ color: '#f97316', fontWeight: 600 }}>
+            🟠 Keluar: <strong>{keluarEntry.value}</strong>
+          </p>
+          {data?.namaBarangKeluar?.length > 0 && (
+            <ul style={{ color: '#6b7280', fontSize: 11, paddingLeft: 8, marginTop: 4 }}>
+              {data.namaBarangKeluar.map((n, i) => (
+                <li key={i}>• {n}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PERIOD_OPTIONS = [
+  { label: '7 Hari Terakhir',   days: 7   },
+  { label: '30 Hari Terakhir',  days: 30  },
+  { label: '90 Hari Terakhir',  days: 90  },
+  { label: '1 Tahun Terakhir',  days: 365 },
 ];
 
 export default function AnalyticsDashboard() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [trendDays, setTrendDays] = useState(30);
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user'));
+
+  const fetchSummary = (days) => {
+    setLoading(true);
+    api
+      .get('/analytics/summary', { params: { days } })
+      .then((res) => {
+        setSummary(res.data.data);
+      })
+      .catch((err) => {
+        alert(err.response?.data?.message || 'Gagal memuat analytics');
+      })
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     if (!user) {
@@ -62,85 +129,103 @@ export default function AnalyticsDashboard() {
       return;
     }
 
-    api
-      .get('/analytics/summary', { params: { days: 30 } })
-      .then((res) => {
-        setSummary(res.data.data);
-      })
-      .catch((err) => {
-        alert(err.response?.data?.message || 'Gagal memuat analytics');
-      })
-      .finally(() => setLoading(false));
-  }, [navigate, user]);
+    fetchSummary(trendDays);
+  }, [navigate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handlePeriodChange = (e) => {
+    const days = Number(e.target.value);
+    setTrendDays(days);
+    fetchSummary(days);
+  };
 
   /**
-   * Issue #1: Trend data sekarang per barang per tanggal.
-   * Format: [{ tanggal: '2026-05-01', 'Barang A': 10, 'Barang B': 5, ... }]
-   * Ini supaya setiap barang punya line sendiri di chart.
+   * Data gabungan: total masuk & total keluar per tanggal.
+   * Gap-fill: semua 30 hari selalu muncul di grafik.
+   * Hari tanpa transaksi diisi totalMasuk:0 & totalKeluar:0 agar garis tidak putus.
    */
-  const { trendChartData: masukChartData, itemNames: masukItemNames } = useMemo(() => {
-    if (!summary) return { trendChartData: [], itemNames: [] };
+  const combinedTrendData = useMemo(() => {
+    if (!summary) return [];
 
     const masuk = summary.trend?.masuk || [];
+    const keluar = summary.trend?.keluar || [];
     const dateMap = new Map();
-    const itemSet = new Set();
+
+    const ensureEntry = (key) => {
+      if (!dateMap.has(key)) {
+        dateMap.set(key, {
+          tanggal: key,
+          totalMasuk: 0,
+          totalKeluar: 0,
+          namaBarangMasuk: [],
+          namaBarangKeluar: [],
+        });
+      }
+      return dateMap.get(key);
+    };
 
     masuk.forEach((row) => {
       const key = formatDate(row.tanggal || row.TANGGAL);
-      const namaBarang = row.nama_barang || row.NAMA_BARANG || row.id_barang || 'Unknown';
       const total = Number(row.total || row.TOTAL || 0);
-
-      itemSet.add(namaBarang);
-
-      if (!dateMap.has(key)) {
-        dateMap.set(key, { tanggal: key });
-      }
-      const entry = dateMap.get(key);
-      entry[namaBarang] = (entry[namaBarang] || 0) + total;
+      const nama = row.nama_barang || row.NAMA_BARANG || '';
+      const entry = ensureEntry(key);
+      entry.totalMasuk += total;
+      if (nama) entry.namaBarangMasuk.push(`${nama} (${total})`);
     });
-
-    const trendChartData = Array.from(dateMap.values()).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
-    const itemNames = Array.from(itemSet);
-    return { trendChartData, itemNames };
-  }, [summary]);
-
-  const { trendChartData: keluarChartData, itemNames: keluarItemNames } = useMemo(() => {
-    if (!summary) return { trendChartData: [], itemNames: [] };
-
-    const keluar = summary.trend?.keluar || [];
-    const dateMap = new Map();
-    const itemSet = new Set();
 
     keluar.forEach((row) => {
       const key = formatDate(row.tanggal || row.TANGGAL);
-      const namaBarang = row.nama_barang || row.NAMA_BARANG || row.id_barang || 'Unknown';
       const total = Number(row.total || row.TOTAL || 0);
-
-      itemSet.add(namaBarang);
-
-      if (!dateMap.has(key)) {
-        dateMap.set(key, { tanggal: key });
-      }
-      const entry = dateMap.get(key);
-      entry[namaBarang] = (entry[namaBarang] || 0) + total;
+      const nama = row.nama_barang || row.NAMA_BARANG || '';
+      const entry = ensureEntry(key);
+      entry.totalKeluar += total;
+      if (nama) entry.namaBarangKeluar.push(`${nama} (${total})`);
     });
 
-    const trendChartData = Array.from(dateMap.values()).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
-    const itemNames = Array.from(itemSet);
-    return { trendChartData, itemNames };
+    // Gap-fill: iterasi seluruh rentang date_from s/d date_to dari backend
+    // Hari tanpa transaksi tetap muncul dengan nilai 0
+    const dateFrom = summary.date_from ? new Date(summary.date_from + 'T00:00:00') : null;
+    const dateTo   = summary.date_to   ? new Date(summary.date_to   + 'T00:00:00') : null;
+
+    if (dateFrom && dateTo) {
+      const result = [];
+      const cursor = new Date(dateFrom);
+      while (cursor <= dateTo) {
+        const key = cursor.toISOString().substring(0, 10);
+        result.push(
+          dateMap.get(key) ?? {
+            tanggal: key,
+            totalMasuk: 0,
+            totalKeluar: 0,
+            namaBarangMasuk: [],
+            namaBarangKeluar: [],
+          }
+        );
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      return result;
+    }
+
+    // Fallback jika date_from/date_to belum ada di response
+    return Array.from(dateMap.values()).sort((a, b) =>
+      a.tanggal.localeCompare(b.tanggal)
+    );
   }, [summary]);
 
   /**
-   * Issue #2: Fast-moving sekarang punya total_masuk DAN total_keluar
+   * Fast-moving: top-5 berdasarkan total_keluar tertinggi.
+   * Hanya menampilkan total_keluar — total_masuk tidak digunakan.
+   * Sort + slice di frontend sebagai safety net.
    */
   const fastMovingData = useMemo(() => {
     if (!summary) return [];
-    return (summary.fast_moving || []).map((item) => ({
-      id_barang: item.id_barang || item.ID_BARANG,
-      nama_barang: item.nama_barang || item.NAMA_BARANG,
-      total_keluar: Number(item.total_keluar || item.TOTAL_KELUAR || 0),
-      total_masuk: Number(item.total_masuk || item.TOTAL_MASUK || 0),
-    }));
+    return [...(summary.fast_moving || [])]
+      .map((item) => ({
+        id_barang: item.id_barang || item.ID_BARANG,
+        nama_barang: item.nama_barang || item.NAMA_BARANG,
+        total_keluar: Number(item.total_keluar || item.TOTAL_KELUAR || 0),
+      }))
+      .sort((a, b) => b.total_keluar - a.total_keluar)
+      .slice(0, 5);
   }, [summary]);
 
   const flowTotals = useMemo(() => {
@@ -179,6 +264,8 @@ export default function AnalyticsDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 p-8">
       <div className="max-w-6xl mx-auto space-y-8">
+
+        {/* Header */}
         <div className="bg-navy-main p-6 text-white flex justify-between items-center rounded-xl shadow-lg">
           <div>
             <h1 className="text-2xl font-bold">Dashboard Analytics Gudang</h1>
@@ -204,6 +291,7 @@ export default function AnalyticsDashboard() {
           <div className="bg-white p-6 rounded-xl shadow">Loading analytics...</div>
         ) : (
           <>
+            {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-white rounded-xl shadow p-5 border border-gray-200">
                 <p className="text-sm text-gray-500">Total Barang</p>
@@ -219,60 +307,84 @@ export default function AnalyticsDashboard() {
               </div>
             </div>
 
-            {/* Issue #1: Grafik Trend Barang MASUK — per barang (setiap barang punya line sendiri) */}
+            {/* Grafik Trend Gabungan: Barang Masuk & Keluar */}
             <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-              <h2 className="text-lg font-bold text-navy-main mb-4">Trend Barang Masuk (Per Barang)</h2>
-              <div className="h-72">
+              <div className="flex items-start justify-between mb-1">
+                <h2 className="text-lg font-bold text-navy-main">
+                  Trend Aktivitas Gudang
+                </h2>
+                <select
+                  value={trendDays}
+                  onChange={handlePeriodChange}
+                  className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 text-gray-700 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer"
+                >
+                  {PERIOD_OPTIONS.map((opt) => (
+                    <option key={opt.days} value={opt.days}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-xs text-gray-400 mb-4">
+                Hover pada titik grafik untuk melihat detail nama barang
+              </p>
+              <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={masukChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="tanggal" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    {masukItemNames.map((name, idx) => (
-                      <Line
-                        key={name}
-                        type="monotone"
-                        dataKey={name}
-                        stroke={ITEM_COLORS[idx % ITEM_COLORS.length]}
-                        strokeWidth={2}
-                        dot={{ r: 3 }}
-                        connectNulls
-                      />
-                    ))}
+                  <LineChart
+                    data={combinedTrendData}
+                    margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="tanggal"
+                      tickFormatter={(val) => {
+                        if (!val) return '';
+                        const parts = val.split('-');
+                        return parts.length === 3 ? `${parts[2]}/${parts[1]}` : val;
+                      }}
+                      tick={{ fontSize: 10, fill: '#6b7280' }}
+                      tickLine={false}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: '#6b7280' }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend
+                      formatter={(value) =>
+                        value === 'Barang Masuk'
+                          ? <span style={{ color: '#2563eb', fontWeight: 600 }}>🔵 Barang Masuk</span>
+                          : <span style={{ color: '#f97316', fontWeight: 600 }}>🟠 Barang Keluar</span>
+                      }
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="totalMasuk"
+                      name="Barang Masuk"
+                      stroke="#2563eb"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: '#2563eb', strokeWidth: 0 }}
+                      activeDot={{ r: 6, fill: '#2563eb', stroke: '#dbeafe', strokeWidth: 3 }}
+                      connectNulls
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="totalKeluar"
+                      name="Barang Keluar"
+                      stroke="#f97316"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: '#f97316', strokeWidth: 0 }}
+                      activeDot={{ r: 6, fill: '#f97316', stroke: '#ffedd5', strokeWidth: 3 }}
+                      connectNulls
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            {/* Issue #1: Grafik Trend Barang KELUAR — per barang */}
-            <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-              <h2 className="text-lg font-bold text-navy-main mb-4">Trend Barang Keluar (Per Barang)</h2>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={keluarChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="tanggal" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    {keluarItemNames.map((name, idx) => (
-                      <Line
-                        key={name}
-                        type="monotone"
-                        dataKey={name}
-                        stroke={ITEM_COLORS[idx % ITEM_COLORS.length]}
-                        strokeWidth={2}
-                        dot={{ r: 3 }}
-                        connectNulls
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
+            {/* Persentase Barang Masuk vs Keluar */}
             <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
               <h2 className="text-lg font-bold text-navy-main mb-4">Persentase Barang Masuk vs Keluar</h2>
               <div className="h-64">
@@ -300,40 +412,79 @@ export default function AnalyticsDashboard() {
               </div>
             </div>
 
+            {/* Grid 2 kolom: Fast Moving (kiri) + Barang Menipis (kanan) */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Issue #2: Fast-Moving sekarang ada info Masuk DAN Keluar */}
+
+              {/* Fast-Moving: Top 5 barang keluar tertinggi */}
               <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-                <h2 className="text-lg font-bold text-navy-main mb-4">Fast-Moving Items (Masuk & Keluar)</h2>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={fastMovingData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="nama_barang" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="total_masuk" fill="#2563eb" name="Total Masuk" />
-                      <Bar dataKey="total_keluar" fill="#f97316" name="Total Keluar" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-lg font-bold text-navy-main">Fast-Moving Items</h2>
+                  <span className="bg-orange-50 border border-orange-200 text-orange-500 text-xs font-semibold px-3 py-1 rounded-full">
+                    Top 5 Keluar Tertinggi
+                  </span>
                 </div>
-                <div className="mt-4 space-y-2 text-sm">
-                  {fastMovingData.map((item) => (
-                    <div key={item.id_barang} className="flex justify-between">
-                      <span>{item.nama_barang}</span>
-                      <span>
-                        <span className="font-bold text-blue-600">Masuk: {item.total_masuk}</span>
-                        {' | '}
-                        <span className="font-bold text-orange-600">Keluar: {item.total_keluar}</span>
-                      </span>
+
+                {fastMovingData.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-8">
+                    Belum ada data barang keluar.
+                  </p>
+                ) : (() => {
+                  const maxKeluar = fastMovingData[0]?.total_keluar || 1;
+                  return (
+                    <div className="space-y-5">
+                      {fastMovingData.map((item, idx) => (
+                        <div key={item.id_barang}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span
+                                className="flex-shrink-0 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center"
+                                style={{
+                                  background:
+                                    idx === 0 ? '#f97316'
+                                    : idx === 1 ? '#fb923c'
+                                    : '#fed7aa',
+                                  color: idx <= 1 ? 'white' : '#9a3412',
+                                }}
+                              >
+                                {idx + 1}
+                              </span>
+                              <span
+                                className="text-sm font-medium text-gray-700 truncate"
+                                title={item.nama_barang}
+                              >
+                                {item.nama_barang}
+                              </span>
+                            </div>
+                            <span className="flex-shrink-0 ml-3 text-sm font-bold text-orange-600">
+                              {item.total_keluar.toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-2">
+                            <div
+                              className="h-2 rounded-full transition-all duration-500"
+                              style={{
+                                width: `${(item.total_keluar / maxKeluar) * 100}%`,
+                                background:
+                                  idx === 0
+                                    ? 'linear-gradient(90deg, #f97316, #fb923c)'
+                                    : idx === 1
+                                    ? 'linear-gradient(90deg, #fb923c, #fed7aa)'
+                                    : '#fed7aa',
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  );
+                })()}
               </div>
 
-              {/* Issue #3: Barang Menipis sekarang <= 10% Kapasitas */}
+              {/* Barang Menipis <= 10% Kapasitas */}
               <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-                <h2 className="text-lg font-bold text-navy-main mb-4">Barang Menipis (&lt;= 10% Kapasitas)</h2>
+                <h2 className="text-lg font-bold text-navy-main mb-4">
+                  Barang Menipis (&lt;= 10% Kapasitas)
+                </h2>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -367,6 +518,7 @@ export default function AnalyticsDashboard() {
                   </table>
                 </div>
               </div>
+
             </div>
           </>
         )}
