@@ -130,12 +130,12 @@ export default function AnalyticsDashboard() {
     }
 
     fetchSummary(trendDays);
-  }, [navigate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [trendDays, navigate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePeriodChange = (e) => {
     const days = Number(e.target.value);
     setTrendDays(days);
-    fetchSummary(days);
+    // fetchSummary dipanggil otomatis oleh useEffect saat trendDays berubah
   };
 
   /**
@@ -190,7 +190,11 @@ export default function AnalyticsDashboard() {
       const result = [];
       const cursor = new Date(dateFrom);
       while (cursor <= dateTo) {
-        const key = cursor.toISOString().substring(0, 10);
+        // Gunakan tanggal lokal (bukan UTC) agar cocok dengan key dari backend
+        const yyyy = cursor.getFullYear();
+        const mm   = String(cursor.getMonth() + 1).padStart(2, '0');
+        const dd   = String(cursor.getDate()).padStart(2, '0');
+        const key  = `${yyyy}-${mm}-${dd}`;
         result.push(
           dateMap.get(key) ?? {
             tanggal: key,
