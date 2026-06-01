@@ -273,11 +273,13 @@ export default function AnalyticsDashboard() {
         <div className="bg-navy-main p-6 text-white flex justify-between items-center rounded-xl shadow-lg">
           <div>
             <h1 className="text-2xl font-bold">Dashboard Analytics Gudang</h1>
-            <p className="text-sm text-gray-200">Ringkasan data 30 hari terakhir</p>
+            <p className="text-sm text-gray-200">
+              Ringkasan data {PERIOD_OPTIONS.find(opt => opt.days === trendDays)?.label || `${trendDays} hari terakhir`}
+            </p>
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => openPdf('/reports/analytics/pdf', { days: 30 })}
+              onClick={() => openPdf('/reports/analytics/pdf', { days: trendDays })}
               className="bg-yellow-accent text-navy-main px-4 py-2 rounded font-bold hover:bg-yellow-500"
             >
               Export PDF

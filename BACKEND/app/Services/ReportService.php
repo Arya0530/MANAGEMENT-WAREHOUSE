@@ -7,7 +7,8 @@ use Illuminate\Support\Facades\DB;
 class ReportService
 {
     /**
-     * Barang menipis = stok <= 10% dari Kapasitas_Max
+     * Issue #3: Barang menipis = stok <= 10% dari Kapasitas_Max
+     * Tidak pakai threshold hardcoded lagi.
      */
     public static function lowStock(int $threshold = 5): array
     {
@@ -30,13 +31,15 @@ class ReportService
     {
         $since = now()->subDays($days);
 
-        $totalBarang   = DB::table('BARANG')->count();
+        $totalBarang = DB::table('BARANG')->count();
         $totalKategori = DB::table('KATEGORI')->count();
         $totalSupplier = DB::table('SUPPLIER')->count();
 
-        $masukTrend  = self::trendByDateWithName('BARANG_MASUK',  'Tgl_Masuk',  'Qty_Masuk',  $since);
+        // Issue #1: Trend sekarang include nama_barang per item
+        $masukTrend = self::trendByDateWithName('BARANG_MASUK', 'Tgl_Masuk', 'Qty_Masuk', $since);
         $keluarTrend = self::trendByDateWithName('BARANG_KELUAR', 'Tgl_Keluar', 'Qty_Keluar', $since);
 
+        // Issue #2: Fast-moving sekarang include total_masuk juga
         $fastMoving = self::fastMovingWithFlow($since);
 
         return [
@@ -44,16 +47,16 @@ class ReportService
             'date_from'  => $since->toDateString(),
             'date_to'    => now()->toDateString(),
             'totals' => [
-                'barang'    => $totalBarang,
-                'kategori'  => $totalKategori,
-                'supplier'  => $totalSupplier,
+                'barang' => $totalBarang,
+                'kategori' => $totalKategori,
+                'supplier' => $totalSupplier,
             ],
             'trend' => [
-                'masuk'  => $masukTrend,
+                'masuk' => $masukTrend,
                 'keluar' => $keluarTrend,
             ],
             'fast_moving' => $fastMoving,
-            'low_stock'   => self::lowStock(5),
+            'low_stock' => self::lowStock(5),
         ];
     }
 
@@ -63,7 +66,7 @@ class ReportService
 
         $masukQuery = DB::table('BARANG_MASUK as bm')
             ->join('PEGAWAI as p', 'bm.ID_Pegawai', '=', 'p.ID_Pegawai')
-            ->join('BARANG as b',  'bm.ID_Barang',  '=', 'b.ID_Barang')
+            ->join('BARANG as b', 'bm.ID_Barang', '=', 'b.ID_Barang')
             ->select(
                 'bm.ID_Masuk as id',
                 'bm.Tgl_Masuk as tanggal',
@@ -79,7 +82,7 @@ class ReportService
 
         $keluarQuery = DB::table('BARANG_KELUAR as bk')
             ->join('PEGAWAI as p', 'bk.ID_Pegawai', '=', 'p.ID_Pegawai')
-            ->join('BARANG as b',  'bk.ID_Barang',  '=', 'b.ID_Barang')
+            ->join('BARANG as b', 'bk.ID_Barang', '=', 'b.ID_Barang')
             ->select(
                 'bk.ID_Keluar as id',
                 'bk.Tgl_Keluar as tanggal',
@@ -98,7 +101,7 @@ class ReportService
             $keluarQuery->where('bk.ID_Pegawai', $pegawaiId);
         }
 
-        $masuk  = $masukQuery->get();
+        $masuk = $masukQuery->get();
         $keluar = $keluarQuery->get();
 
         $riwayat = $masuk->merge($keluar);
@@ -126,12 +129,21 @@ class ReportService
     }
 
     /**
-     * Trend per tanggal dengan nama_barang di setiap row.
-     * Kompatibel dengan Oracle (TRUNC) dan MySQL/SQLite/PostgreSQL (DATE).
+     * Issue #1: Trend per tanggal dengan nama_barang di setiap row
      */
     private static function trendByDateWithName(string $table, string $dateColumn, string $qtyColumn, $since): array
     {
-        $dateExpr = self::dateExpression('t.' . $dateColumn);
+        $driver = DB::getDriverName();
+
+        // Oracle: TRUNC tidak butuh prefix alias tabel
+        // MySQL/SQLite: pakai DATE()
+        if ($driver === 'oracle' || $driver === 'oci8') {
+            $dateExpr    = 'TRUNC(t.' . $dateColumn . ')';
+            $groupByExpr = 'TRUNC(t.' . $dateColumn . ')';
+        } else {
+            $dateExpr    = 'DATE(t.' . $dateColumn . ')';
+            $groupByExpr = 'DATE(t.' . $dateColumn . ')';
+        }
 
         $rows = DB::table($table . ' as t')
             ->join('BARANG as b', 't.ID_Barang', '=', 'b.ID_Barang')
@@ -142,18 +154,19 @@ class ReportService
                 DB::raw('SUM(t.' . $qtyColumn . ') as total')
             )
             ->where('t.' . $dateColumn, '>=', $since)
-            ->groupBy(DB::raw($dateExpr), 'b.Nama_Barang', 'b.ID_Barang')
-            ->orderBy(DB::raw($dateExpr))
+            ->groupBy(DB::raw($groupByExpr), 'b.Nama_Barang', 'b.ID_Barang')
+            ->orderBy(DB::raw($groupByExpr))
             ->get();
 
         return $rows->all();
     }
 
     /**
-     * Fast-moving items dengan total_masuk DAN total_keluar.
+     * Issue #2: Fast-moving items dengan info total_masuk DAN total_keluar
      */
     private static function fastMovingWithFlow($since): array
     {
+        // Hitung total keluar per barang
         $keluarData = DB::table('BARANG_KELUAR as bk')
             ->join('BARANG as b', 'bk.ID_Barang', '=', 'b.ID_Barang')
             ->select(
@@ -168,6 +181,7 @@ class ReportService
             ->get()
             ->keyBy('id_barang');
 
+        // Hitung total masuk per barang (hanya barang yang sudah ada di keluarData)
         $barangIds = $keluarData->pluck('id_barang')->all();
 
         $masukData = collect();
@@ -184,24 +198,21 @@ class ReportService
                 ->keyBy('id_barang');
         }
 
+        // Gabungkan data keluar + masuk
         $result = [];
         foreach ($keluarData as $id => $item) {
             $totalMasuk = $masukData->has($id) ? $masukData[$id]->total_masuk : 0;
             $result[] = (object) [
-                'id_barang'    => $item->id_barang,
-                'nama_barang'  => $item->nama_barang,
+                'id_barang' => $item->id_barang,
+                'nama_barang' => $item->nama_barang,
                 'total_keluar' => $item->total_keluar,
-                'total_masuk'  => $totalMasuk,
+                'total_masuk' => $totalMasuk,
             ];
         }
 
         return $result;
     }
 
-    /**
-     * Generate ekspresi tanggal sesuai driver database.
-     * $column harus sudah include alias tabel, misal: 't.Tgl_Masuk'
-     */
     private static function dateExpression(string $column): string
     {
         $driver = DB::getDriverName();
@@ -210,7 +221,6 @@ class ReportService
             return 'TRUNC(' . $column . ')';
         }
 
-        // mysql, sqlite, pgsql
         return 'DATE(' . $column . ')';
     }
 }
